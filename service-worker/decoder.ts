@@ -1,4 +1,5 @@
 import UTIF from 'utif'
+import { fromArrayBuffer } from 'geotiff'
 
 export interface DecodedImage {
   width: number
@@ -31,5 +32,71 @@ export function decodeWithUtif(buffer: ArrayBuffer): DecodedImage {
     width: page.width,
     height: page.height,
     rgba: new Uint8ClampedArray(rgba),
+  }
+}
+
+/**
+ * Normalize interleaved raster bands to RGBA. Handles 1 (gray), 3 (RGB), and
+ * 4 (RGBA) samples-per-pixel, scaling 16-bit samples down to 8-bit.
+ */
+export function normalizeToRgba(
+  data: ArrayLike<number>,
+  width: number,
+  height: number,
+  samples: number,
+  is16: boolean,
+): Uint8ClampedArray<ArrayBuffer> {
+  const out = new Uint8ClampedArray(width * height * 4)
+  const scale = is16 ? 1 / 257 : 1
+  const pixels = width * height
+  for (let i = 0, p = 0; i < pixels; i++, p += 4) {
+    const base = i * samples
+    if (samples === 1) {
+      const v = data[base]! * scale
+      out[p] = v
+      out[p + 1] = v
+      out[p + 2] = v
+      out[p + 3] = 255
+    } else if (samples === 3) {
+      out[p] = data[base]! * scale
+      out[p + 1] = data[base + 1]! * scale
+      out[p + 2] = data[base + 2]! * scale
+      out[p + 3] = 255
+    } else {
+      out[p] = data[base]! * scale
+      out[p + 1] = data[base + 1]! * scale
+      out[p + 2] = data[base + 2]! * scale
+      out[p + 3] = data[base + 3]! * scale
+    }
+  }
+  return out
+}
+
+/** Fallback decoder for 16-bit / tiled / COG / exotic-compression TIFFs. */
+export async function decodeWithGeotiff(buffer: ArrayBuffer): Promise<DecodedImage> {
+  const tiff = await fromArrayBuffer(buffer)
+  const image = await tiff.getImage()
+  const width = image.getWidth()
+  const height = image.getHeight()
+  const samples = image.getSamplesPerPixel()
+  const bps = image.getBitsPerSample()
+  const is16 = Array.isArray(bps) ? Math.max(...bps) > 8 : (bps as number) > 8
+  const raster = await image.readRasters({ interleave: true })
+  const rgba = normalizeToRgba(
+    raster as unknown as ArrayLike<number>,
+    width,
+    height,
+    samples,
+    is16,
+  )
+  return { width, height, rgba }
+}
+
+/** Decode any TIFF: UTIF first (fast, common 8-bit), geotiff fallback otherwise. */
+export async function decodeTiff(buffer: ArrayBuffer): Promise<DecodedImage> {
+  try {
+    return decodeWithUtif(buffer)
+  } catch {
+    return decodeWithGeotiff(buffer)
   }
 }
