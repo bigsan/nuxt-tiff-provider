@@ -72,7 +72,11 @@ export function normalizeToRgba(
   return out
 }
 
-/** Fallback decoder for 16-bit / tiled / COG / exotic-compression TIFFs. */
+/**
+ * Fallback decoder for 16-bit / tiled / COG / exotic-compression TIFFs.
+ * Reads the first image only; multi-image TIFFs (overview pyramids, band
+ * stacks) are out of MVP scope.
+ */
 export async function decodeWithGeotiff(buffer: ArrayBuffer): Promise<DecodedImage> {
   const tiff = await fromArrayBuffer(buffer)
   const image = await tiff.getImage()
@@ -80,8 +84,14 @@ export async function decodeWithGeotiff(buffer: ArrayBuffer): Promise<DecodedIma
   const height = image.getHeight()
   const samples = image.getSamplesPerPixel()
   const bps = image.getBitsPerSample()
-  const is16 = Array.isArray(bps) ? Math.max(...bps) > 8 : (bps as number) > 8
+  const maxBps = Array.isArray(bps) ? Math.max(...bps) : (bps ?? 8)
+  const is16 = maxBps > 8
   const raster = await image.readRasters({ interleave: true })
+  // `interleave: true` always yields a single interleaved TypedArray; a band
+  // array means a misconfiguration, so fail fast rather than emit garbage pixels.
+  if (Array.isArray(raster)) {
+    throw new Error('geotiff: expected interleaved raster, got band array')
+  }
   const rgba = normalizeToRgba(
     raster as unknown as ArrayLike<number>,
     width,

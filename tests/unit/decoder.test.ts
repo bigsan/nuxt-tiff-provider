@@ -35,6 +35,7 @@ describe('decodeTiff', () => {
   it('routes a 16-bit TIFF to the geotiff fallback automatically', async () => {
     const out = await decodeTiff(load('gray16.tif'))
     expect(out.width).toBe(512)
+    expect(out.height).toBe(384)
     expect(out.rgba.length).toBe(512 * 384 * 4)
   })
 })
