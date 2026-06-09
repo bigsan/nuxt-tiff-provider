@@ -14,6 +14,8 @@ export interface DecodedImage {
  */
 export function decodeWithUtif(buffer: ArrayBuffer): DecodedImage {
   const ifds = UTIF.decode(buffer)
+  // Narrows `ifds[0]` from `IFD | undefined` to `IFD` (noUncheckedIndexedAccess)
+  // and defends UTIF's `IFD[]` contract; UTIF returns >=1 IFD in practice.
   const page = ifds[0]
   if (!page) throw new Error('UTIF: no IFDs found')
   const bits = page.t258
