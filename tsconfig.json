@@ -1,6 +1,7 @@
 {
   "extends": "./.nuxt/tsconfig.json",
   "include": [
+    ".nuxt/nuxt.d.ts",
     "types/**/*.d.ts",
     "app/**/*",
     "service-worker/**/*",
