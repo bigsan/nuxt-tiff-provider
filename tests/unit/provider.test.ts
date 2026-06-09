@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { ImageCTX } from '@nuxt/image'
 import { buildTiffUrl, getImage } from '../../app/providers/tiff'
 
 describe('buildTiffUrl', () => {
@@ -23,6 +24,6 @@ describe('buildTiffUrl', () => {
 
 describe('getImage', () => {
   it('returns a { url } object built from the modifiers context', () => {
-    expect(getImage('/a.tif', { modifiers: { width: 320 } })).toEqual({ url: '/a.tif?fmt=webp&w=320' })
+    expect(getImage('/a.tif', { modifiers: { width: 320 } }, {} as ImageCTX)).toEqual({ url: '/a.tif?fmt=webp&w=320' })
   })
 })
