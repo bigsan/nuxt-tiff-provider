@@ -1,7 +1,8 @@
 export interface RgbaImage {
   width: number
   height: number
-  rgba: Uint8ClampedArray
+  /** RGBA bytes. Must be ArrayBuffer-backed (the natural result of `new Uint8ClampedArray(len)` or a decoder allocation) so it can construct an `ImageData` without a copy. */
+  rgba: Uint8ClampedArray<ArrayBuffer>
 }
 
 export interface EncodeOptions {
@@ -21,7 +22,7 @@ export async function encodeWebp(image: RgbaImage, opts: EncodeOptions = {}): Pr
     opts.targetWidth && opts.targetWidth > 0 && opts.targetWidth < width ? opts.targetWidth : width
   const targetHeight = Math.max(1, Math.round((targetWidth / width) * height))
 
-  const source = new ImageData(new Uint8ClampedArray(rgba), width, height)
+  const source = new ImageData(rgba, width, height)
   const bitmap = await createImageBitmap(source)
   try {
     const canvas = new OffscreenCanvas(targetWidth, targetHeight)
