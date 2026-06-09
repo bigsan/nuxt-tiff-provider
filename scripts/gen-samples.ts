@@ -2,7 +2,6 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { Buffer } from 'node:buffer'
 import UTIF from 'utif'
-import { writeArrayBuffer } from 'geotiff'
 
 /** 8-bit RGBA gradient → baseline TIFF (UTIF decode path). */
 function makeRgb8(width: number, height: number): ArrayBuffer {
@@ -19,20 +18,64 @@ function makeRgb8(width: number, height: number): ArrayBuffer {
   return UTIF.encodeImage(rgba.buffer, width, height)
 }
 
-/** 16-bit single-band gradient → TIFF (forces the geotiff fallback path). */
-async function makeGray16(width: number, height: number): Promise<ArrayBuffer> {
-  const data = new Uint16Array(width * height)
-  for (let i = 0; i < data.length; i++) {
-    data[i] = Math.round((i / data.length) * 65535)
+/**
+ * 16-bit single-band gradient → baseline little-endian TIFF (forces the
+ * geotiff fallback path; UTIF rejects >8-bit).
+ *
+ * NOTE: geotiff.js's *writer* (`writeArrayBuffer`) is 8-bit only — it sizes the
+ * pixel body as `width * height * samplesPerPixel` (one byte/sample) regardless
+ * of a `BitsPerSample: [16]` tag, producing a file whose header lies and which
+ * `readRasters` cannot decode (RangeError). So we hand-emit a minimal, valid
+ * baseline 16-bit TIFF (10 IFD tags + raw 16-bit LE strip) directly.
+ */
+function makeGray16(width: number, height: number): ArrayBuffer {
+  const HEADER = 8
+  const ENTRIES = 10
+  const ifdBytes = 2 + ENTRIES * 12 + 4 // entry count + entries + next-IFD offset
+  const dataOffset = HEADER + ifdBytes
+  const bodyBytes = width * height * 2
+  const buf = new ArrayBuffer(dataOffset + bodyBytes)
+  const dv = new DataView(buf)
+  const LE = true
+  const SHORT = 3
+  const LONG = 4
+
+  // Header: "II", magic 42, IFD0 offset
+  dv.setUint8(0, 0x49)
+  dv.setUint8(1, 0x49)
+  dv.setUint16(2, 42, LE)
+  dv.setUint32(4, HEADER, LE)
+
+  // IFD0
+  let p = HEADER
+  dv.setUint16(p, ENTRIES, LE)
+  p += 2
+  const entry = (tag: number, type: number, value: number): void => {
+    dv.setUint16(p, tag, LE)
+    dv.setUint16(p + 2, type, LE)
+    dv.setUint32(p + 4, 1, LE) // count
+    if (type === SHORT) dv.setUint16(p + 8, value, LE)
+    else dv.setUint32(p + 8, value, LE)
+    p += 12
   }
-  return writeArrayBuffer(data, {
-    width,
-    height,
-    SamplesPerPixel: 1,
-    BitsPerSample: [16],
-    SampleFormat: [1],
-    PhotometricInterpretation: 1,
-  })
+  entry(256, SHORT, width) // ImageWidth
+  entry(257, SHORT, height) // ImageLength
+  entry(258, SHORT, 16) // BitsPerSample
+  entry(259, SHORT, 1) // Compression: none
+  entry(262, SHORT, 1) // PhotometricInterpretation: BlackIsZero
+  entry(273, LONG, dataOffset) // StripOffsets
+  entry(277, SHORT, 1) // SamplesPerPixel
+  entry(278, LONG, height) // RowsPerStrip
+  entry(279, LONG, bodyBytes) // StripByteCounts
+  entry(339, SHORT, 1) // SampleFormat: unsigned integer
+  dv.setUint32(p, 0, LE) // next IFD = none
+
+  // Pixel body: 16-bit little-endian gradient
+  const n = width * height
+  for (let i = 0; i < n; i++) {
+    dv.setUint16(dataOffset + i * 2, Math.round((i / n) * 65535), LE)
+  }
+  return buf
 }
 
 function write(path: string, buf: ArrayBuffer): void {
@@ -42,9 +85,9 @@ function write(path: string, buf: ArrayBuffer): void {
   process.stdout.write(`wrote ${path} (${buf.byteLength} bytes)\n`)
 }
 
-async function main(): Promise<void> {
+function main(): void {
   const rgb8 = makeRgb8(512, 384)
-  const gray16 = await makeGray16(512, 384)
+  const gray16 = makeGray16(512, 384)
   const probe = makeRgb8(2, 2)
 
   write('public/samples/rgb8.tif', rgb8)
@@ -54,7 +97,9 @@ async function main(): Promise<void> {
   write('tests/fixtures/gray16.tif', gray16)
 }
 
-main().catch((err) => {
+try {
+  main()
+} catch (err) {
   process.stderr.write(`${err}\n`)
   process.exit(1)
-})
+}
