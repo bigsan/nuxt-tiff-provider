@@ -43,6 +43,7 @@ async function handleTiff(request: Request, url: URL): Promise<Response> {
   try {
     const t0 = performance.now()
     const res = await fetch(rawRequest(url))
+    if (!res.ok) return res
     const buffer = await res.arrayBuffer()
     const decoded = await decodeTiff(buffer)
     const t1 = performance.now()
