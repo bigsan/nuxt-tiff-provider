@@ -32,7 +32,13 @@ function loop(t: number): void {
 
 function onMessage(event: MessageEvent): void {
   const data = event.data
-  if (data?.type === 'TIFF_TIMING') {
+  if (
+    data?.type === 'TIFF_TIMING' &&
+    typeof data.url === 'string' &&
+    typeof data.decode === 'number' &&
+    typeof data.encode === 'number' &&
+    typeof data.total === 'number'
+  ) {
     timings[data.url] = { decode: data.decode, encode: data.encode, total: data.total }
   }
 }
@@ -103,7 +109,7 @@ onUnmounted(() => {
 figure {
   margin: 0;
 }
-img {
+:deep(img) {
   width: 100%;
   height: auto;
   border-radius: 8px;
