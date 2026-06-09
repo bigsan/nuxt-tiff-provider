@@ -1,0 +1,10 @@
+{
+  "extends": "./.nuxt/tsconfig.json",
+  "include": [
+    "types/**/*.d.ts",
+    "app/**/*",
+    "service-worker/**/*",
+    "scripts/**/*",
+    "tests/**/*"
+  ]
+}
