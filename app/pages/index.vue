@@ -4,6 +4,7 @@ import { onMounted, onUnmounted, reactive, ref } from 'vue'
 const frames = ref(0)
 const fps = ref(0)
 const timings = reactive<Record<string, { decode: number; encode: number; total: number }>>({})
+const swReady = ref(false)
 
 const samples = [
   { src: '/samples/rgb8.tif', label: '8-bit RGB (UTIF path)' },
@@ -43,9 +44,31 @@ function onMessage(event: MessageEvent): void {
   }
 }
 
+async function gateOnServiceWorker(): Promise<void> {
+  if (!('serviceWorker' in navigator)) {
+    swReady.value = true
+    return
+  }
+  if (navigator.serviceWorker.controller) {
+    swReady.value = true
+    return
+  }
+  // Cold visit: add controllerchange listener BEFORE any await to avoid missing the event
+  navigator.serviceWorker.addEventListener(
+    'controllerchange',
+    () => { swReady.value = true },
+    { once: true },
+  )
+  await navigator.serviceWorker.ready
+  if (navigator.serviceWorker.controller) {
+    swReady.value = true
+  }
+}
+
 onMounted(() => {
   rafId = requestAnimationFrame(loop)
   navigator.serviceWorker?.addEventListener('message', onMessage)
+  gateOnServiceWorker()
 })
 
 onUnmounted(() => {
@@ -67,6 +90,7 @@ onUnmounted(() => {
     <section class="gallery">
       <figure v-for="s in samples" :key="s.src">
         <NuxtImg
+          v-if="swReady"
           provider="tiff"
           :src="s.src"
           width="640"
@@ -76,8 +100,8 @@ onUnmounted(() => {
         <figcaption>
           {{ s.label }}
           <span v-if="timings[s.src]" :data-testid="`timing-${s.src}`">
-            · decode {{ timings[s.src].decode.toFixed(0) }}ms · encode
-            {{ timings[s.src].encode.toFixed(0) }}ms
+            · decode {{ timings[s.src]!.decode.toFixed(0) }}ms · encode
+            {{ timings[s.src]!.encode.toFixed(0) }}ms
           </span>
         </figcaption>
       </figure>
