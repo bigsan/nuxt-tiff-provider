@@ -33,5 +33,8 @@ test('second load is served from cache (no raw .tif request on reload)', async (
 
   await page.reload()
   await expect.poll(() => naturalWidth(page, `img-${RGB8}`), { timeout: 20_000 }).toBeGreaterThan(0)
+  // A cache hit means the reload is served WebP from the Cache API: the browser
+  // must make zero raw `.tif`/`.tiff` requests that lack the `fmt` param. Any such
+  // request would mean the transcode/cache path was bypassed.
   expect(rawRequests.length).toBe(0)
 })

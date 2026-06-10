@@ -2,7 +2,8 @@ import { defineConfig, devices } from '@playwright/test'
 
 // Spec targets port 3000; override with E2E_PORT for local runs (e.g. when
 // Grafana already occupies 3000, use E2E_PORT=3100).
-const PORT = Number(process.env.E2E_PORT ?? 3000)
+const PARSED_PORT = Number(process.env.E2E_PORT)
+const PORT = Number.isNaN(PARSED_PORT) ? 3000 : PARSED_PORT
 const BASE_URL = `http://localhost:${PORT}`
 
 export default defineConfig({

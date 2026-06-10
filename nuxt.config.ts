@@ -33,6 +33,9 @@ export default defineNuxtConfig({
       // self-contained classic script with all dynamic imports inlined.
       rollupFormat: 'iife',
     },
+    // Dev mode serves the SW as a native ES module (Vite dev requires ESM), while
+    // the production build above bundles it to a self-contained classic IIFE
+    // (rollupFormat: 'iife'). These apply to different builds, so they don't conflict.
     devOptions: { enabled: true, type: 'module', suppressWarnings: true },
   },
 })

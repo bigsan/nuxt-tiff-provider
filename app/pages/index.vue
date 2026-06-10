@@ -45,22 +45,34 @@ function onMessage(event: MessageEvent): void {
 }
 
 async function gateOnServiceWorker(): Promise<void> {
-  if (!('serviceWorker' in navigator)) {
-    swReady.value = true
-    return
-  }
-  if (navigator.serviceWorker.controller) {
-    swReady.value = true
-    return
-  }
-  // Cold visit: add controllerchange listener BEFORE any await to avoid missing the event
-  navigator.serviceWorker.addEventListener(
-    'controllerchange',
-    () => { swReady.value = true },
-    { once: true },
-  )
-  await navigator.serviceWorker.ready
-  if (navigator.serviceWorker.controller) {
+  try {
+    if (!('serviceWorker' in navigator)) {
+      swReady.value = true
+      return
+    }
+    if (navigator.serviceWorker.controller) {
+      swReady.value = true
+      return
+    }
+    // Cold visit: add controllerchange listener BEFORE any await to avoid missing the event
+    navigator.serviceWorker.addEventListener(
+      'controllerchange',
+      () => {
+        swReady.value = true
+      },
+      { once: true },
+    )
+    await navigator.serviceWorker.ready
+    if (navigator.serviceWorker.controller) {
+      swReady.value = true
+    }
+  } catch (err) {
+    // Fail open: if service-worker probing throws (e.g. `.ready` rejects in an
+    // unexpected environment), render the images ungated rather than leaving the
+    // gate stuck closed. Surface the cause — do not swallow it silently. This is a
+    // single catch-all on an exceptional path, not routine logging, so it is
+    // consistent with the service worker's sanctioned console.warn usage.
+    console.warn('[tiff] service-worker gate failed, rendering ungated:', err)
     swReady.value = true
   }
 }
@@ -68,7 +80,7 @@ async function gateOnServiceWorker(): Promise<void> {
 onMounted(() => {
   rafId = requestAnimationFrame(loop)
   navigator.serviceWorker?.addEventListener('message', onMessage)
-  gateOnServiceWorker()
+  void gateOnServiceWorker()
 })
 
 onUnmounted(() => {
