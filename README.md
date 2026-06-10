@@ -43,3 +43,16 @@ pnpm test:e2e                  # Playwright (render, liveness, cache)
 
 Whole-image transcode (no COG tiling); a Service Worker may be terminated on
 gigapixel files — the documented scaling path is a page-side Worker pool.
+
+16-bit and other non-baseline TIFFs decode via the geotiff fallback. geotiff
+lazy-loads its codec modules with a runtime `import()`, which the HTML spec
+forbids inside a Service Worker ([w3c/ServiceWorker#1356][sw1356]), so the dev
+SW (served as an ES module) statically pre-registers only the uncompressed
+(raw) codec — the format of the sole >8-bit fixture. Compressed >8-bit TIFFs
+(LZW/Deflate/JPEG, …) therefore do not decode in the **dev** SW: geotiff's
+`exports` map blocks the codec subpaths, so those classes can't be reached to
+register them statically. The production build is a classic IIFE with every
+codec inlined, so it is unaffected — meaning a compressed 16-bit file can paint
+under `pnpm preview` yet fail under `pnpm dev`.
+
+[sw1356]: https://github.com/w3c/ServiceWorker/issues/1356

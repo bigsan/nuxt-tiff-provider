@@ -1,5 +1,8 @@
 import UTIF from 'utif'
 import { fromArrayBuffer } from 'geotiff'
+// Side effect: statically register geotiff's raw codec so the 16-bit fallback
+// decodes inside a Service Worker, where geotiff's lazy `import()` is forbidden.
+import './geotiff-decoders'
 
 export interface DecodedImage {
   width: number
