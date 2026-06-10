@@ -6,8 +6,10 @@ transcodes TIFF → WebP **off the main thread** in a Service Worker.
 ## How it works
 
 1. `<NuxtImg provider="tiff" src="/x.tif" width=640>` → the provider emits
-   `/x.tif?fmt=webp&w=640` (+ `srcset`). The provider is a pure, synchronous,
-   isomorphic URL builder — no decoding happens here.
+   `/x.tif?fmt=webp&w=640`; given `sizes`, `@nuxt/image` calls the provider
+   once per candidate width and assembles the resulting URLs into a `srcset`.
+   The provider is a pure, synchronous, isomorphic URL builder — no decoding
+   happens here.
 2. A Service Worker intercepts `.tif`/`.tiff` requests carrying `fmt`:
    cache hit → serve WebP; miss → fetch raw bytes, decode (UTIF → geotiff.js
    fallback), resize + encode to WebP via `OffscreenCanvas`, cache, return.
