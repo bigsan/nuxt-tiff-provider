@@ -14,7 +14,10 @@ export function buildTiffUrl(
   modifiers: Record<string, unknown> = {},
   baseURL = '',
 ): string {
-  const merged: Record<string, unknown> = { format: 'webp', ...modifiers }
+  const merged: Record<string, unknown> = {
+    ...modifiers,
+    format: (modifiers.format as string | undefined) || 'webp',
+  }
   const params = new URLSearchParams()
   const keys = [...KEY_ORDER, ...Object.keys(merged).filter((k) => !KEY_ORDER.includes(k))]
   for (const key of keys) {
