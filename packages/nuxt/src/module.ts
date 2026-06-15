@@ -8,6 +8,7 @@ import {
   hasNuxtModule,
   installModule,
 } from '@nuxt/kit'
+import type { NuxtModule } from '@nuxt/schema'
 import { defu } from 'defu'
 
 export interface ModuleOptions {
@@ -23,7 +24,7 @@ export interface ModuleOptions {
   autoRegister: boolean
 }
 
-export default defineNuxtModule<ModuleOptions>({
+const module: NuxtModule<ModuleOptions> = defineNuxtModule<ModuleOptions>({
   meta: {
     name: 'nuxt-tiff-provider',
     configKey: 'tiff',
@@ -98,3 +99,5 @@ export default defineNuxtModule<ModuleOptions>({
     }
   },
 })
+
+export default module
