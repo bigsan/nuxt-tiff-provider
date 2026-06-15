@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 const SW = resolve(__dirname, '../dist/tiff-sw.js')
 
 describe('built tiff-sw.js artifact', () => {
-  it('exists (run `pnpm --filter @tiff-provider/core build` first)', () => {
+  it('exists after the tsup build', () => {
     expect(existsSync(SW)).toBe(true)
   })
 
