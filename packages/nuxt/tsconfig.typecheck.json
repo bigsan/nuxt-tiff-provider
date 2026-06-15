@@ -1,0 +1,9 @@
+{
+  // Standalone typecheck of the module's build-time code (src/module.ts).
+  // src/runtime/* imports Nuxt virtual aliases (e.g. '#app') that only resolve inside a
+  // Nuxt app build, so bare `tsc` cannot type them. The runtime is instead validated by
+  // the module build (dts generation), the @nuxt/test-utils integration test, and the
+  // playground — so it is excluded here to keep `pnpm typecheck` meaningful and green.
+  "extends": "./tsconfig.json",
+  "exclude": ["src/runtime"]
+}
