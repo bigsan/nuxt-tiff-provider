@@ -17,7 +17,7 @@ const PROBE_TIFF_BASE64 =
 
 /** True only where the browser paints TIFF natively (Safari). */
 export async function detectNativeTiff(): Promise<boolean> {
-  if (typeof createImageBitmap === 'undefined') return false
+  if (typeof createImageBitmap === 'undefined' || typeof atob === 'undefined') return false
   try {
     const bytes = Uint8Array.from(atob(PROBE_TIFF_BASE64), (c) => c.charCodeAt(0))
     const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/tiff' }))
@@ -41,7 +41,10 @@ export async function registerTiffServiceWorker(
   const params = new URLSearchParams()
   if (cacheName) params.set('cache', cacheName)
   if (typeof quality === 'number') params.set('q', String(Math.round(quality * 100)))
-  const url = params.toString() ? `${swUrl}?${params.toString()}` : swUrl
+  const qs = params.toString()
+  // Use '&' if swUrl already carries a query string (e.g. a versioned '/tiff-sw.js?v=2'); otherwise '?'.
+  const sep = swUrl.includes('?') ? '&' : '?'
+  const url = qs ? `${swUrl}${sep}${qs}` : swUrl
 
   const reg = await navigator.serviceWorker.register(url, { scope })
 
