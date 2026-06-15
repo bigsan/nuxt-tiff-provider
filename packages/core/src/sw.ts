@@ -9,7 +9,10 @@ declare const self: ServiceWorkerGlobalScope
 // prebuilt artifact never needs rebuilding to be configured.
 const swParams = new URL(self.location.href).searchParams
 const CACHE_NAME = swParams.get('cache') || 'tiff-webp-v1'
-const DEFAULT_QUALITY = swParams.has('q') ? Number(swParams.get('q')) / 100 : 0.8
+const qRaw = swParams.get('q')
+const qNum = qRaw === null || qRaw === '' ? NaN : Number(qRaw)
+// Fall back to 0.8 for missing/empty/non-numeric/out-of-range q; honor an explicit 0..100.
+const DEFAULT_QUALITY = Number.isFinite(qNum) && qNum >= 0 && qNum <= 100 ? qNum / 100 : 0.8
 
 let nativeTiff = false
 
@@ -49,7 +52,10 @@ async function handleTiff(request: Request, url: URL): Promise<Response> {
     const decoded = await decodeTiff(buffer)
     const t1 = performance.now()
     const { targetWidth, quality } = parseModifiers(url)
-    const blob = await encodeWebp(decoded, { targetWidth, quality: quality ?? DEFAULT_QUALITY })
+    const blob = await encodeWebp(decoded, {
+      targetWidth,
+      quality: Number.isFinite(quality) ? quality : DEFAULT_QUALITY,
+    })
     const t2 = performance.now()
 
     const response = new Response(blob, {
