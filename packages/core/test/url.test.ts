@@ -19,4 +19,12 @@ describe('buildTiffUrl', () => {
   it('skips empty/undefined modifiers', () => {
     expect(buildTiffUrl('/a.tif', { width: undefined, height: '' })).toBe('/a.tif?fmt=webp')
   })
+
+  it('maps a height value to the short key h', () => {
+    expect(buildTiffUrl('/a.tif', { height: 200 })).toBe('/a.tif?fmt=webp&h=200')
+  })
+
+  it('honors an explicit format override', () => {
+    expect(buildTiffUrl('/a.tif', { format: 'jpeg' })).toBe('/a.tif?fmt=jpeg')
+  })
 })
