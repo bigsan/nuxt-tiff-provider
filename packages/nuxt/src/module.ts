@@ -86,8 +86,17 @@ const module: NuxtModule<ModuleOptions> = defineNuxtModule<ModuleOptions>({
       fn: (config: { publicAssets?: Array<{ baseURL?: string; dir: string; maxAge?: number }> }) => void,
     ) => void)('nitro:config', (nitro) => {
       nitro.publicAssets ||= []
-      // A SW script must not be HTTP-cached, so updates reach returning visitors immediately.
-      nitro.publicAssets.push({ baseURL: '/', dir: swDir, maxAge: 0 })
+      nitro.publicAssets.push({ baseURL: '/', dir: swDir })
+    })
+
+    // A SW script must be revalidated so updates reach returning visitors. publicAssets
+    // can't emit Cache-Control for a root-scoped/fallthrough asset, so use a route rule.
+    // `nitro` is added to NuxtOptions by @nuxt/nitro at runtime; cast to access it.
+    const nitroOptions = (nuxt.options as unknown as {
+      nitro?: { routeRules?: Record<string, unknown> }
+    }).nitro ??= {}
+    nitroOptions.routeRules = defu(nitroOptions.routeRules, {
+      '/tiff-sw.js': { headers: { 'cache-control': 'no-cache' } },
     })
 
     // 4. Hand options to the client plugin and register it.
