@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decideStrategy, isTiffPath, parseModifiers, shouldIntercept } from '../../service-worker/router'
+import { decideStrategy, isTiffPath, parseModifiers, shouldIntercept } from '../src/router'
 
 describe('isTiffPath', () => {
   it('matches .tif and .tiff case-insensitively', () => {

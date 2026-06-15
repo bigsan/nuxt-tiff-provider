@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getDecoder } from 'geotiff'
-import { RawDecoder } from '../../service-worker/geotiff-decoders'
+import { RawDecoder } from '../src/geotiff-decoders'
 
 // geotiff lazy-loads its codec classes via `await import('./raw.js')`, which the
 // HTML spec forbids inside a ServiceWorkerGlobalScope (w3c/ServiceWorker#1356).

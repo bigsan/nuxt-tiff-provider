@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { decodeTiff, decodeWithGeotiff, decodeWithUtif } from '../../service-worker/decoder'
+import { decodeTiff, decodeWithGeotiff, decodeWithUtif } from '../src/decoder'
 
 function load(name: string): ArrayBuffer {
-  const buf = readFileSync(resolve(__dirname, '../fixtures', name))
+  const buf = readFileSync(resolve(__dirname, './fixtures', name))
   return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
 }
 

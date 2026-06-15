@@ -1,0 +1,29 @@
+import { joinURL } from 'ufo'
+
+const KEY_MAP: Record<string, string> = { format: 'fmt', width: 'w', height: 'h', quality: 'q' }
+const KEY_ORDER = ['format', 'width', 'height', 'quality']
+
+/**
+ * Pure, isomorphic URL builder. Encodes image modifiers into the TIFF URL's
+ * query string. `fmt` defaults to `webp`; `fmt` is the Service Worker's
+ * interception signal.
+ */
+export function buildTiffUrl(
+  src: string,
+  modifiers: Record<string, unknown> = {},
+  baseURL = '',
+): string {
+  const merged: Record<string, unknown> = {
+    ...modifiers,
+    format: (modifiers.format as string | undefined) || 'webp',
+  }
+  const params = new URLSearchParams()
+  const keys = [...KEY_ORDER, ...Object.keys(merged).filter((k) => !KEY_ORDER.includes(k))]
+  for (const key of keys) {
+    const value = merged[key]
+    if (value === undefined || value === null || value === '') continue
+    params.set(KEY_MAP[key] ?? key, String(value))
+  }
+  const qs = params.toString()
+  return joinURL(baseURL, src) + (qs ? `?${qs}` : '')
+}
