@@ -23,9 +23,10 @@
     "defu": "^6.1.0"
   },
   "devDependencies": {
-    "@nuxt/module-builder": "^0.8.0",
+    "@nuxt/module-builder": "^1.0.0",
     "@nuxt/schema": "^3.13.0",
     "@nuxt/test-utils": "^3.14.0",
+    "@types/node": "^22",
     "nuxt": "^4.0.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
