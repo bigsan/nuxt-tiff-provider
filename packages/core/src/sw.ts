@@ -1,16 +1,17 @@
 /// <reference lib="webworker" />
-import { precacheAndRoute } from 'workbox-precaching'
 import { decodeTiff } from './decoder'
 import { encodeWebp } from './encoder'
 import { parseModifiers, shouldIntercept } from './router'
 
-declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST: unknown[] }
+declare const self: ServiceWorkerGlobalScope
 
-const CACHE_NAME = 'tiff-webp-v1'
+// Runtime config from the registration URL query (?cache=...&q=...), so the
+// prebuilt artifact never needs rebuilding to be configured.
+const swParams = new URL(self.location.href).searchParams
+const CACHE_NAME = swParams.get('cache') || 'tiff-webp-v1'
+const DEFAULT_QUALITY = swParams.has('q') ? Number(swParams.get('q')) / 100 : 0.8
+
 let nativeTiff = false
-
-// Required by injectManifest: consumes the precache manifest Vite injects.
-precacheAndRoute(self.__WB_MANIFEST || [])
 
 self.addEventListener('install', () => {
   self.skipWaiting()
@@ -48,7 +49,7 @@ async function handleTiff(request: Request, url: URL): Promise<Response> {
     const decoded = await decodeTiff(buffer)
     const t1 = performance.now()
     const { targetWidth, quality } = parseModifiers(url)
-    const blob = await encodeWebp(decoded, { targetWidth, quality })
+    const blob = await encodeWebp(decoded, { targetWidth, quality: quality ?? DEFAULT_QUALITY })
     const t2 = performance.now()
 
     const response = new Response(blob, {
