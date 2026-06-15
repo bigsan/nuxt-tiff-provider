@@ -24,6 +24,8 @@ pnpm dev               # http://localhost:3000
 
 ```bash
 pnpm run test:unit     # vitest (url, router, decoder, geotiff-decoders, sw-artifact — 26 tests)
+
+pnpm exec playwright install chromium
 pnpm run test:e2e      # Playwright against the playground (render, liveness, cache)
 ```
 
