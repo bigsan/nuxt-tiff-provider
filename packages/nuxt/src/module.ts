@@ -62,7 +62,15 @@ export default defineNuxtModule<ModuleOptions>({
     // 3. Copy the prebuilt classic SW into the build dir and serve it at root scope
     //    (root scope needs no Service-Worker-Allowed header).
     const require = createRequire(import.meta.url)
-    const swSource = require.resolve('@tiff-provider/core/tiff-sw.js')
+    let swSource: string
+    try {
+      swSource = require.resolve('@tiff-provider/core/tiff-sw.js')
+    } catch {
+      throw new Error(
+        'nuxt-tiff-provider: could not resolve "@tiff-provider/core/tiff-sw.js". ' +
+          'Ensure @tiff-provider/core is installed and built (run `pnpm run build:core`).',
+      )
+    }
     const swDir = join(nuxt.options.buildDir, 'tiff-sw')
     mkdirSync(swDir, { recursive: true })
     copyFileSync(swSource, join(swDir, 'tiff-sw.js'))
@@ -72,7 +80,8 @@ export default defineNuxtModule<ModuleOptions>({
       fn: (config: { publicAssets?: Array<{ baseURL?: string; dir: string; maxAge?: number }> }) => void,
     ) => void)('nitro:config', (nitro) => {
       nitro.publicAssets ||= []
-      nitro.publicAssets.push({ baseURL: '/', dir: swDir, maxAge: 300 })
+      // A SW script must not be HTTP-cached, so updates reach returning visitors immediately.
+      nitro.publicAssets.push({ baseURL: '/', dir: swDir, maxAge: 0 })
     })
 
     // 4. Hand options to the client plugin and register it.
