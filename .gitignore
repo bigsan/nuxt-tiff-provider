@@ -6,6 +6,7 @@ dist
 *.log
 .DS_Store
 public/samples
+playground/public/samples
 test-results
 playwright-report
 coverage

@@ -88,13 +88,11 @@ function write(path: string, buf: ArrayBuffer): void {
 function main(): void {
   const rgb8 = makeRgb8(512, 384)
   const gray16 = makeGray16(512, 384)
-  const probe = makeRgb8(2, 2)
 
-  write('public/samples/rgb8.tif', rgb8)
-  write('public/samples/gray16.tif', gray16)
-  write('public/native-probe.bin', probe)
-  write('tests/fixtures/rgb8.tif', rgb8)
-  write('tests/fixtures/gray16.tif', gray16)
+  write('playground/public/samples/rgb8.tif', rgb8)
+  write('playground/public/samples/gray16.tif', gray16)
+  write('packages/core/test/fixtures/rgb8.tif', rgb8)
+  write('packages/core/test/fixtures/gray16.tif', gray16)
 }
 
 try {

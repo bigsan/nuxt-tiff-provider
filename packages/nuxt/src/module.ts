@@ -60,7 +60,7 @@ const module: NuxtModule<ModuleOptions> = defineNuxtModule<ModuleOptions>({
       await installModule('@nuxt/image')
     }
 
-    // 3. Copy the prebuilt classic SW into the build dir and serve it at root scope
+    // 3. Copy the prebuilt classic SW into a stable dir and serve it at root scope
     //    (root scope needs no Service-Worker-Allowed header).
     const require = createRequire(import.meta.url)
     let swSource: string
@@ -72,9 +72,14 @@ const module: NuxtModule<ModuleOptions> = defineNuxtModule<ModuleOptions>({
           'Ensure @tiff-provider/core is installed and built (run `pnpm run build:core`).',
       )
     }
-    const swDir = join(nuxt.options.buildDir, 'tiff-sw')
+    // The Nuxt CLI's build command calls clearBuildDir() which removes everything
+    // from buildDir except 'cache/', 'analyze/', 'nuxt.json', and 'nuxt.lock'.
+    // We store the SW under buildDir/cache/tiff-sw/ so it survives clearBuildDir.
+    // The copy runs at module setup() so the dir exists when nitro:config fires.
+    const swDir = join(nuxt.options.buildDir, 'cache', 'tiff-sw')
     mkdirSync(swDir, { recursive: true })
     copyFileSync(swSource, join(swDir, 'tiff-sw.js'))
+
     // `nitro:config` is a runtime Nuxt hook bridged from Nitro, not yet in NuxtHooks types.
     ;(nuxt.hook as (
       name: 'nitro:config',
