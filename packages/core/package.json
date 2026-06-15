@@ -6,13 +6,26 @@
   "type": "module",
   "files": ["dist"],
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" },
-    "./url": { "types": "./dist/url.d.ts", "import": "./dist/url.js", "require": "./dist/url.cjs" },
-    "./register": { "types": "./dist/register.d.ts", "import": "./dist/register.js", "require": "./dist/register.cjs" },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": { "types": "./dist/index.d.cts", "default": "./dist/index.cjs" }
+    },
+    "./url": {
+      "types": "./dist/url.d.ts",
+      "import": "./dist/url.js",
+      "require": { "types": "./dist/url.d.cts", "default": "./dist/url.cjs" }
+    },
+    "./register": {
+      "types": "./dist/register.d.ts",
+      "import": "./dist/register.js",
+      "require": { "types": "./dist/register.d.cts", "default": "./dist/register.cjs" }
+    },
     "./tiff-sw.js": "./dist/tiff-sw.js"
   },
   "scripts": {
     "build": "tsup",
+    "pretest": "tsup",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
