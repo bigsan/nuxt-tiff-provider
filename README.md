@@ -1,7 +1,31 @@
-# Nuxt TIFF Provider (MVP)
+# nuxt-tiff-provider (monorepo)
 
-Render TIFF images in any browser via a custom `@nuxt/image` provider that
-transcodes TIFF → WebP **off the main thread** in a Service Worker.
+Render TIFF images in any browser off the main thread. A Service Worker
+intercepts `.tif`/`.tiff` requests, decodes them via UTIF or geotiff.js, and
+re-encodes to WebP — transparently, with caching. Safari's native TIFF support
+is detected and honoured with a passthrough.
+
+## Packages
+
+| Package | Description |
+|---------|-------------|
+| [`@tiff-provider/core`](packages/core) | Framework-agnostic decode/encode/route logic + prebuilt Service Worker IIFE (`tiff-sw.js`) |
+| [`nuxt-tiff-provider`](packages/nuxt) | Nuxt module: registers the `@nuxt/image` provider, serves the prebuilt SW, and wires up a client plugin |
+
+## Develop
+
+```bash
+pnpm install
+pnpm run gen:samples   # generate TIFF fixtures into playground/public/samples + packages/core/test/fixtures
+pnpm dev               # http://localhost:3000
+```
+
+## Test
+
+```bash
+pnpm run test:unit     # vitest (url, router, decoder, geotiff-decoders, sw-artifact — 26 tests)
+pnpm run test:e2e      # Playwright against the playground (render, liveness, cache)
+```
 
 ## How it works
 
@@ -15,44 +39,12 @@ transcodes TIFF → WebP **off the main thread** in a Service Worker.
    fallback), resize + encode to WebP via `OffscreenCanvas`, cache, return.
 3. Safari (native TIFF) is detected client-side and the SW passes through.
 
-## Develop
-
-```bash
-pnpm install
-pnpm gen:samples   # generate TIFF fixtures into public/samples + tests/fixtures
-pnpm dev           # http://localhost:3000
-```
-
-## Test
-
-```bash
-pnpm test:unit                 # vitest (provider, router, decoder)
-pnpm exec playwright install chromium
-pnpm test:e2e                  # Playwright (render, liveness, cache)
-```
-
-## Layout
-
-- `app/providers/tiff.ts` — modifier → URL strategy (pure/isomorphic)
-- `service-worker/{sw,router,decoder,encoder}.ts` — off-thread transcode
-- `app/plugins/tiff-capability.client.ts` — native-TIFF (Safari) passthrough
-- `app/pages/index.vue` — demo + main-thread liveness proof
-- `scripts/gen-samples.ts` — deterministic fixtures
-
-## Known limits (MVP)
-
-Whole-image transcode (no COG tiling); a Service Worker may be terminated on
-gigapixel files — the documented scaling path is a page-side Worker pool.
-
-16-bit and other non-baseline TIFFs decode via the geotiff fallback. geotiff
-lazy-loads its codec modules with a runtime `import()`, which the HTML spec
-forbids inside a Service Worker ([w3c/ServiceWorker#1356][sw1356]), so the dev
-SW (served as an ES module) statically pre-registers only the uncompressed
-(raw) codec — the format of the sole >8-bit fixture. Compressed >8-bit TIFFs
-(LZW/Deflate/JPEG, …) therefore do not decode in the **dev** SW: geotiff's
-`exports` map blocks the codec subpaths, so those classes can't be reached to
-register them statically. The production build is a classic IIFE with every
-codec inlined, so it is unaffected — meaning a compressed 16-bit file can paint
-under `pnpm preview` yet fail under `pnpm dev`.
+The shipped SW is a prebuilt classic IIFE (`dist/tiff-sw.js` inside
+`@tiff-provider/core`) with `utif` + `geotiff` and **all geotiff codecs**
+inlined at build time. Consumers never see the dev-time constraint described in
+[w3c/ServiceWorker#1356][sw1356]: that runtime `import()` is forbidden inside a
+Service Worker. The classic IIFE has every codec statically inlined, so
+compressed 16-bit TIFFs (LZW, Deflate, JPEG, …) decode correctly in all
+environments including `pnpm dev`.
 
 [sw1356]: https://github.com/w3c/ServiceWorker/issues/1356
