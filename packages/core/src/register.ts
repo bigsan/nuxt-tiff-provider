@@ -7,6 +7,11 @@ export interface RegisterOptions {
   cacheName?: string
   /** Default WebP quality 0..1 passed to the SW via ?q=. */
   quality?: number
+  /**
+   * Re-request TIFF `<img>`s that loaded before the Service Worker controlled
+   * the page (a cold visit) and so failed to decode. Default true.
+   */
+  retryRacedImages?: boolean
 }
 
 // A minimal 2x2 baseline TIFF. createImageBitmap() resolves it only where the
@@ -28,6 +33,69 @@ export async function detectNativeTiff(): Promise<boolean> {
   }
 }
 
+/** A TIFF-provider request always carries `fmt=` (see buildTiffUrl). */
+const TIFF_REQUEST_RE = /[?&]fmt=/
+
+/**
+ * Append a cache-busting marker so a retried request bypasses the browser's
+ * cached raw-TIFF response and reaches the (now-controlling) Service Worker.
+ */
+export function withRetryParam(url: string): string {
+  return url + (url.includes('?') ? '&' : '?') + '_tiffretry=1'
+}
+
+/** Apply {@link withRetryParam} to every candidate URL in a `srcset` value. */
+export function withRetrySrcset(srcset: string): string {
+  return srcset
+    .split(',')
+    .map((part) => {
+      const seg = part.trim()
+      if (!seg) return seg
+      const sp = seg.indexOf(' ')
+      return sp === -1 ? withRetryParam(seg) : withRetryParam(seg.slice(0, sp)) + seg.slice(sp)
+    })
+    .join(', ')
+}
+
+/**
+ * Recover from the cold-visit race: the browser's preload scanner fetches `<img>`
+ * TIFF URLs before the SW controls the page, so they load raw bytes and fail to
+ * decode (everywhere but Safari, which paints TIFF natively). clients.claim()
+ * cannot retroactively intercept those in-flight requests, so re-request any
+ * failed TIFF image once the SW is in control — each at most once.
+ */
+function installRacedImageRecovery(): void {
+  if (typeof document === 'undefined') return
+  const sw = navigator.serviceWorker
+
+  const retry = (img: HTMLImageElement): void => {
+    if (img.dataset.tiffRetried || !TIFF_REQUEST_RE.test(img.currentSrc || img.src)) return
+    img.dataset.tiffRetried = '1'
+    if (img.srcset) img.srcset = withRetrySrcset(img.srcset)
+    img.src = withRetryParam(img.src)
+  }
+
+  // Images that fail once the SW already controls the page: retry on the spot.
+  // An <img> error does not bubble, so listen in the capture phase.
+  window.addEventListener(
+    'error',
+    (event) => {
+      const target = event.target
+      if (target instanceof HTMLImageElement && sw.controller) retry(target)
+    },
+    true,
+  )
+
+  // Images that already failed before the SW took control: sweep once it does.
+  const sweep = (): void => {
+    for (const img of Array.from(document.images)) {
+      if (img.complete && img.naturalWidth === 0) retry(img)
+    }
+  }
+  if (sw.controller) sweep()
+  else sw.addEventListener('controllerchange', sweep, { once: true })
+}
+
 /**
  * Register the prebuilt transcode Service Worker and tell it whether the browser
  * paints TIFF natively (→ passthrough). No-op outside a SW-capable browser.
@@ -36,7 +104,10 @@ export async function registerTiffServiceWorker(
   opts: RegisterOptions = {},
 ): Promise<ServiceWorkerRegistration | undefined> {
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
-  const { swUrl = '/tiff-sw.js', scope = '/', cacheName, quality } = opts
+  const { swUrl = '/tiff-sw.js', scope = '/', cacheName, quality, retryRacedImages = true } = opts
+
+  // Install before registering so the capture listener is in place as early as possible.
+  if (retryRacedImages) installRacedImageRecovery()
 
   const params = new URLSearchParams()
   if (cacheName) params.set('cache', cacheName)

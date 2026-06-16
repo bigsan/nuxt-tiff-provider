@@ -32,6 +32,7 @@ export default defineNuxtConfig({
     quality: 0.8,              // default WebP quality 0..1
     scope: '/',                // Service Worker scope
     autoRegister: true,        // false → call registerTiffServiceWorker() yourself
+    retryRacedImages: true,    // re-fetch images that raced the SW on first load
   },
 })
 ```
@@ -39,6 +40,8 @@ export default defineNuxtConfig({
 ## Notes
 
 - Safari paints TIFF natively; the SW detects this and passes through.
+- First cold visit: images requested before the SW took control are re-fetched
+  automatically once it does (disable with `retryRacedImages: false`).
 - Already run your own Service Worker? Set `autoRegister: false` and
   `importScripts('/tiff-sw.js')` inside it (see `@tiff-provider/core`).
 - Sources must be same-origin or CORS-readable.

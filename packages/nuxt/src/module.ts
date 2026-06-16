@@ -8,7 +8,6 @@ import {
   hasNuxtModule,
   installModule,
 } from '@nuxt/kit'
-import type { NuxtModule } from '@nuxt/schema'
 import { defu } from 'defu'
 
 export interface ModuleOptions {
@@ -22,9 +21,11 @@ export interface ModuleOptions {
   scope: string
   /** Auto-register the SW from a client plugin. Default true. */
   autoRegister: boolean
+  /** Re-request TIFF images that raced the SW on a cold load. Default true. */
+  retryRacedImages: boolean
 }
 
-const module: NuxtModule<ModuleOptions> = defineNuxtModule<ModuleOptions>({
+const module = defineNuxtModule<ModuleOptions>({
   meta: {
     name: 'nuxt-tiff-provider',
     configKey: 'tiff',
@@ -36,6 +37,7 @@ const module: NuxtModule<ModuleOptions> = defineNuxtModule<ModuleOptions>({
     quality: 0.8,
     scope: '/',
     autoRegister: true,
+    retryRacedImages: true,
   },
   async setup(options, nuxt) {
     const resolver = createResolver(import.meta.url)
@@ -106,6 +108,7 @@ const module: NuxtModule<ModuleOptions> = defineNuxtModule<ModuleOptions>({
         cacheName: options.cacheName,
         quality: options.quality,
         scope: options.scope,
+        retryRacedImages: options.retryRacedImages,
       },
     )
     if (options.autoRegister) {
