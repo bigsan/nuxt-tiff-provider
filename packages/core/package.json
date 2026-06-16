@@ -1,6 +1,6 @@
 {
   "name": "@tiff-provider/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Framework-agnostic in-browser TIFF→WebP transcoder: decoder, encoder, and a prebuilt Service Worker.",
   "keywords": [
     "tiff",
@@ -17,25 +17,45 @@
   "author": "San Chen <bigsan.chen@gmail.com>",
   "license": "MIT",
   "type": "module",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "access": "public"
   },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
-      "require": { "types": "./dist/index.d.cts", "default": "./dist/index.cjs" }
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./url": {
       "types": "./dist/url.d.ts",
-      "import": { "types": "./dist/url.d.ts", "default": "./dist/url.js" },
-      "require": { "types": "./dist/url.d.cts", "default": "./dist/url.cjs" }
+      "import": {
+        "types": "./dist/url.d.ts",
+        "default": "./dist/url.js"
+      },
+      "require": {
+        "types": "./dist/url.d.cts",
+        "default": "./dist/url.cjs"
+      }
     },
     "./register": {
       "types": "./dist/register.d.ts",
-      "import": { "types": "./dist/register.d.ts", "default": "./dist/register.js" },
-      "require": { "types": "./dist/register.d.cts", "default": "./dist/register.cjs" }
+      "import": {
+        "types": "./dist/register.d.ts",
+        "default": "./dist/register.js"
+      },
+      "require": {
+        "types": "./dist/register.d.cts",
+        "default": "./dist/register.cjs"
+      }
     },
     "./tiff-sw.js": "./dist/tiff-sw.js"
   },

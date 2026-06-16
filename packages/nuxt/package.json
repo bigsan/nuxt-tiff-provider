@@ -1,6 +1,6 @@
 {
   "name": "nuxt-tiff-provider",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Nuxt module: render TIFFs via @nuxt/image off the main thread in a Service Worker.",
   "keywords": [
     "nuxt",
@@ -19,9 +19,14 @@
   "main": "./dist/module.mjs",
   "types": "./dist/types.d.mts",
   "exports": {
-    ".": { "types": "./dist/types.d.mts", "import": "./dist/module.mjs" }
+    ".": {
+      "types": "./dist/types.d.mts",
+      "import": "./dist/module.mjs"
+    }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "nuxt-module-build build",
     "dev:prepare": "nuxt-module-build build --stub",
