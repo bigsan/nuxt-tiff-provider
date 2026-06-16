@@ -2,6 +2,18 @@
   "name": "nuxt-tiff-provider",
   "version": "0.1.0",
   "description": "Nuxt module: render TIFFs via @nuxt/image off the main thread in a Service Worker.",
+  "keywords": [
+    "nuxt",
+    "nuxt-module",
+    "@nuxt/image",
+    "image",
+    "tiff",
+    "geotiff",
+    "webp",
+    "service-worker",
+    "transcode"
+  ],
+  "author": "San Chen <bigsan.chen@gmail.com>",
   "license": "MIT",
   "type": "module",
   "main": "./dist/module.mjs",

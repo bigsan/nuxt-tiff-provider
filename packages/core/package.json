@@ -2,9 +2,25 @@
   "name": "@tiff-provider/core",
   "version": "0.1.0",
   "description": "Framework-agnostic in-browser TIFF→WebP transcoder: decoder, encoder, and a prebuilt Service Worker.",
+  "keywords": [
+    "tiff",
+    "geotiff",
+    "webp",
+    "transcode",
+    "decode",
+    "image",
+    "service-worker",
+    "offscreencanvas",
+    "utif",
+    "browser"
+  ],
+  "author": "San Chen <bigsan.chen@gmail.com>",
   "license": "MIT",
   "type": "module",
   "files": ["dist"],
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
