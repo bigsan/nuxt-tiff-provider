@@ -8,11 +8,13 @@ export default defineNuxtPlugin(() => {
     quality?: number
     scope?: string
     retryRacedImages?: boolean
+    paramPrefix?: string
   }
   void registerTiffServiceWorker({
     scope: cfg.scope,
     cacheName: cfg.cacheName,
     quality: cfg.quality,
     retryRacedImages: cfg.retryRacedImages,
+    paramPrefix: cfg.paramPrefix,
   })
 })

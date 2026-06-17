@@ -9,8 +9,9 @@
     "build:nuxt": "pnpm --filter nuxt-tiff-provider build",
     "build:packages": "pnpm run build:core && pnpm run build:nuxt",
     "dev": "pnpm run build:packages && pnpm --filter playground dev",
-    "test:unit": "pnpm --filter @tiff-provider/core test",
+    "test:unit": "pnpm -r --if-present test",
     "test:e2e": "playwright test",
+    "cors:samples": "node scripts/cors-sample-server.mjs",
     "typecheck": "pnpm -r --if-present typecheck",
     "release": "pnpm run build:packages && changeset publish"
   },

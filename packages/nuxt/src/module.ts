@@ -23,6 +23,8 @@ export interface ModuleOptions {
   autoRegister: boolean
   /** Re-request TIFF images that raced the SW on a cold load. Default true. */
   retryRacedImages: boolean
+  /** Query-param namespace for modifiers and the interception marker. Default 'tp'. */
+  paramPrefix: string
 }
 
 const module = defineNuxtModule<ModuleOptions>({
@@ -38,6 +40,7 @@ const module = defineNuxtModule<ModuleOptions>({
     scope: '/',
     autoRegister: true,
     retryRacedImages: true,
+    paramPrefix: 'tp',
   },
   async setup(options, nuxt) {
     const resolver = createResolver(import.meta.url)
@@ -51,6 +54,7 @@ const module = defineNuxtModule<ModuleOptions>({
           [options.providerName]: {
             name: options.providerName,
             provider: resolver.resolve('./runtime/provider'),
+            options: { paramPrefix: options.paramPrefix },
           },
         },
       },
@@ -109,6 +113,7 @@ const module = defineNuxtModule<ModuleOptions>({
         quality: options.quality,
         scope: options.scope,
         retryRacedImages: options.retryRacedImages,
+        paramPrefix: options.paramPrefix,
       },
     )
     if (options.autoRegister) {

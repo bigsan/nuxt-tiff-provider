@@ -8,19 +8,45 @@ export interface RgbaImage {
 export interface EncodeOptions {
   /** Downscale target width in px; ignored if >= source width. */
   targetWidth?: number
+  /** Downscale target height in px; ignored if >= source height. */
+  targetHeight?: number
   /** WebP quality 0..1. */
   quality?: number
 }
 
 /**
- * Encode RGBA pixels to a WebP Blob off the main thread, optionally downscaling
- * to `targetWidth` (aspect preserved). Runs in the SW/Worker scope.
+ * Compute output dimensions: scale the source down to fit inside the
+ * `targetWidth`×`targetHeight` box with aspect ratio preserved and never
+ * upscaled. Either bound may be omitted; with neither, the source size is kept.
+ * Each axis is clamped to a minimum of 1px.
+ */
+export function fitDimensions(
+  srcWidth: number,
+  srcHeight: number,
+  targetWidth?: number,
+  targetHeight?: number,
+): { width: number; height: number } {
+  let scale = 1
+  if (targetWidth && targetWidth > 0) scale = Math.min(scale, targetWidth / srcWidth)
+  if (targetHeight && targetHeight > 0) scale = Math.min(scale, targetHeight / srcHeight)
+  return {
+    width: Math.max(1, Math.round(srcWidth * scale)),
+    height: Math.max(1, Math.round(srcHeight * scale)),
+  }
+}
+
+/**
+ * Encode RGBA pixels to a WebP Blob off the main thread, downscaling to fit the
+ * requested width/height box (aspect preserved). Runs in the SW/Worker scope.
  */
 export async function encodeWebp(image: RgbaImage, opts: EncodeOptions = {}): Promise<Blob> {
   const { width, height, rgba } = image
-  const targetWidth =
-    opts.targetWidth && opts.targetWidth > 0 && opts.targetWidth < width ? opts.targetWidth : width
-  const targetHeight = Math.max(1, Math.round((targetWidth / width) * height))
+  const { width: targetWidth, height: targetHeight } = fitDimensions(
+    width,
+    height,
+    opts.targetWidth,
+    opts.targetHeight,
+  )
 
   const source = new ImageData(rgba, width, height)
   const bitmap = await createImageBitmap(source)

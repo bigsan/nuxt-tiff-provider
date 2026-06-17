@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { decideStrategy, isTiffPath, parseModifiers, shouldIntercept } from '../src/router'
+import {
+  decideStrategy,
+  isTiffPath,
+  parseModifiers,
+  shouldIntercept,
+  stripProviderParams,
+} from '../src/router'
 
 describe('isTiffPath', () => {
   it('matches .tif and .tiff case-insensitively', () => {
@@ -12,27 +18,58 @@ describe('isTiffPath', () => {
 })
 
 describe('shouldIntercept', () => {
-  it('intercepts a tiff URL carrying fmt', () => {
-    expect(shouldIntercept(new URL('https://x.test/a.tif?fmt=webp'))).toBe(true)
+  it('intercepts any URL carrying the prefix marker', () => {
+    expect(shouldIntercept(new URL('https://x.test/a.tif?tp=1'), 'tp')).toBe(true)
   })
-  it('ignores a tiff URL without fmt (the raw-bytes fetch)', () => {
-    expect(shouldIntercept(new URL('https://x.test/a.tif'))).toBe(false)
+  it('intercepts a marked source even without a .tif extension', () => {
+    expect(shouldIntercept(new URL('https://b.s3.amazonaws.com/abc123?tp=1'), 'tp')).toBe(true)
   })
-  it('ignores a non-tiff URL even with fmt', () => {
-    expect(shouldIntercept(new URL('https://x.test/a.png?fmt=webp'))).toBe(false)
+  it('ignores a URL without the marker (the raw-bytes fetch)', () => {
+    expect(shouldIntercept(new URL('https://x.test/a.tif'), 'tp')).toBe(false)
+  })
+  it('honors a configurable prefix', () => {
+    expect(shouldIntercept(new URL('https://x.test/a.tif?img=1'), 'img')).toBe(true)
+    expect(shouldIntercept(new URL('https://x.test/a.tif?tp=1'), 'img')).toBe(false)
   })
 })
 
 describe('parseModifiers', () => {
-  it('parses width and converts quality from 0..100 to 0..1', () => {
-    const m = parseModifiers(new URL('https://x.test/a.tif?fmt=webp&w=640&q=70'))
+  it('parses namespaced width/height and converts quality from 0..100 to 0..1', () => {
+    const m = parseModifiers(new URL('https://x.test/a.tif?tp=1&tp-w=640&tp-h=200&tp-q=70'), 'tp')
     expect(m.targetWidth).toBe(640)
+    expect(m.targetHeight).toBe(200)
     expect(m.quality).toBeCloseTo(0.7)
   })
   it('returns undefined fields when params are absent', () => {
-    const m = parseModifiers(new URL('https://x.test/a.tif?fmt=webp'))
+    const m = parseModifiers(new URL('https://x.test/a.tif?tp=1'), 'tp')
     expect(m.targetWidth).toBeUndefined()
+    expect(m.targetHeight).toBeUndefined()
     expect(m.quality).toBeUndefined()
+  })
+  it('reads modifiers under a configurable prefix', () => {
+    const m = parseModifiers(new URL('https://x.test/a.tif?img=1&img-w=320'), 'img')
+    expect(m.targetWidth).toBe(320)
+  })
+})
+
+describe('stripProviderParams', () => {
+  it('removes the marker and namespaced params, leaving a bare URL', () => {
+    expect(stripProviderParams(new URL('https://x.test/a.tif?tp=1&tp-w=640&tp-q=70'), 'tp')).toBe(
+      'https://x.test/a.tif',
+    )
+  })
+  it('preserves the source query (e.g. a signed URL)', () => {
+    expect(
+      stripProviderParams(
+        new URL('https://b.s3.amazonaws.com/k?X-Amz-Signature=sig&tp=1&tp-w=640'),
+        'tp',
+      ),
+    ).toBe('https://b.s3.amazonaws.com/k?X-Amz-Signature=sig')
+  })
+  it('honors a configurable prefix', () => {
+    expect(stripProviderParams(new URL('https://x.test/a.tif?img=1&img-w=640&keep=1'), 'img')).toBe(
+      'https://x.test/a.tif?keep=1',
+    )
   })
 })
 

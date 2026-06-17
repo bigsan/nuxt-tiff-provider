@@ -1,29 +1,27 @@
-import { joinURL } from 'ufo'
+import { joinURL, withQuery } from 'ufo'
 
-const KEY_MAP: Record<string, string> = { format: 'fmt', width: 'w', height: 'h', quality: 'q' }
-const KEY_ORDER = ['format', 'width', 'height', 'quality']
+const DEFAULT_PREFIX = 'tp'
+const SHORT_KEY: Record<string, string> = { width: 'w', height: 'h', quality: 'q' }
+const KEY_ORDER = ['width', 'height', 'quality']
 
 /**
  * Pure, isomorphic URL builder. Encodes image modifiers into the TIFF URL's
- * query string. `fmt` defaults to `webp`; `fmt` is the Service Worker's
- * interception signal.
+ * query string under a namespaced `prefix`, merging into any existing query and
+ * preserving the hash. `{prefix}=1` is the Service Worker's interception signal.
+ * Output is always WebP, so a `format` modifier is accepted but ignored.
  */
 export function buildTiffUrl(
   src: string,
   modifiers: Record<string, unknown> = {},
   baseURL = '',
+  opts: { prefix?: string } = {},
 ): string {
-  const merged: Record<string, unknown> = {
-    ...modifiers,
-    format: (modifiers.format as string | undefined) || 'webp',
-  }
-  const params = new URLSearchParams()
-  const keys = [...KEY_ORDER, ...Object.keys(merged).filter((k) => !KEY_ORDER.includes(k))]
-  for (const key of keys) {
-    const value = merged[key]
+  const prefix = opts.prefix || DEFAULT_PREFIX
+  const query: Record<string, string> = { [prefix]: '1' }
+  for (const key of KEY_ORDER) {
+    const value = modifiers[key]
     if (value === undefined || value === null || value === '') continue
-    params.set(KEY_MAP[key] ?? key, String(value))
+    query[`${prefix}-${SHORT_KEY[key]}`] = String(value)
   }
-  const qs = params.toString()
-  return joinURL(baseURL, src) + (qs ? `?${qs}` : '')
+  return withQuery(baseURL ? joinURL(baseURL, src) : src, query)
 }

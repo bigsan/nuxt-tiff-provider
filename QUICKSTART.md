@@ -76,7 +76,7 @@ pnpm dev
 
 Open **http://localhost:3000**. The TIFF is intercepted, decoded, re-encoded to
 WebP, and cached. To confirm: open DevTools → Network and you'll see the request
-go out as `/photo.tif?fmt=webp&w=640` with an `image/webp` response. ✅
+go out as `/photo.tif?tp=1&tp-w=640` with an `image/webp` response. ✅
 
 ---
 
@@ -92,6 +92,7 @@ export default defineNuxtConfig({
     scope: '/',                // Service Worker scope
     autoRegister: true,        // false → register the SW yourself
     retryRacedImages: true,    // re-fetch images that raced the SW on first load
+    paramPrefix: 'tp',         // query-param namespace + interception marker
   },
 })
 ```
@@ -99,7 +100,12 @@ export default defineNuxtConfig({
 ## Good to know
 
 - **Requires Nuxt 3 or 4.**
-- **Sources must be same-origin or CORS-readable.**
+- **Sources must be same-origin or CORS-readable.** A cross-origin source (e.g. an
+  S3 bucket) works when it sends CORS headers. The SW spots TIFFs by the `tp=1`
+  marker the provider adds — not by file extension — so an extension-less object
+  key (S3 serving TIFF via `Content-Type`) is fine. Building such a URL by hand
+  instead of via `<NuxtImg>`? Add the marker yourself with `buildTiffUrl`, or by
+  appending `?tp=1` (use your `paramPrefix` if you changed it).
 - **Safari** paints TIFF natively — the SW detects this and passes through.
 - **First cold visit:** the browser may request a TIFF before the Service Worker
   controls the page, so it briefly loads the raw `.tif` and fails to decode. The

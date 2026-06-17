@@ -12,6 +12,11 @@ export interface RegisterOptions {
    * the page (a cold visit) and so failed to decode. Default true.
    */
   retryRacedImages?: boolean
+  /**
+   * Query-param namespace for provider modifiers and the interception marker,
+   * passed to the SW via `?prefix=`. Default 'tp'.
+   */
+  paramPrefix?: string
 }
 
 // A minimal 2x2 baseline TIFF. createImageBitmap() resolves it only where the
@@ -33,8 +38,15 @@ export async function detectNativeTiff(): Promise<boolean> {
   }
 }
 
-/** A TIFF-provider request always carries `fmt=` (see buildTiffUrl). */
-const TIFF_REQUEST_RE = /[?&]fmt=/
+/**
+ * True if a URL carries the provider's interception marker (the `prefix` key).
+ * Replaces the old `fmt=` sniff used to spot TIFF-provider `<img>`s.
+ */
+export function isTiffProviderRequest(url: string, prefix: string): boolean {
+  const q = url.indexOf('?')
+  if (q === -1) return false
+  return new URLSearchParams(url.slice(q + 1)).has(prefix)
+}
 
 /**
  * Append a cache-busting marker so a retried request bypasses the browser's
@@ -64,12 +76,12 @@ export function withRetrySrcset(srcset: string): string {
  * cannot retroactively intercept those in-flight requests, so re-request any
  * failed TIFF image once the SW is in control — each at most once.
  */
-function installRacedImageRecovery(): void {
+function installRacedImageRecovery(prefix: string): void {
   if (typeof document === 'undefined') return
   const sw = navigator.serviceWorker
 
   const retry = (img: HTMLImageElement): void => {
-    if (img.dataset.tiffRetried || !TIFF_REQUEST_RE.test(img.currentSrc || img.src)) return
+    if (img.dataset.tiffRetried || !isTiffProviderRequest(img.currentSrc || img.src, prefix)) return
     img.dataset.tiffRetried = '1'
     if (img.srcset) img.srcset = withRetrySrcset(img.srcset)
     img.src = withRetryParam(img.src)
@@ -104,14 +116,22 @@ export async function registerTiffServiceWorker(
   opts: RegisterOptions = {},
 ): Promise<ServiceWorkerRegistration | undefined> {
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
-  const { swUrl = '/tiff-sw.js', scope = '/', cacheName, quality, retryRacedImages = true } = opts
+  const {
+    swUrl = '/tiff-sw.js',
+    scope = '/',
+    cacheName,
+    quality,
+    retryRacedImages = true,
+    paramPrefix = 'tp',
+  } = opts
 
   // Install before registering so the capture listener is in place as early as possible.
-  if (retryRacedImages) installRacedImageRecovery()
+  if (retryRacedImages) installRacedImageRecovery(paramPrefix)
 
   const params = new URLSearchParams()
   if (cacheName) params.set('cache', cacheName)
   if (typeof quality === 'number') params.set('q', String(Math.round(quality * 100)))
+  params.set('prefix', paramPrefix)
   const qs = params.toString()
   // Use '&' if swUrl already carries a query string (e.g. a versioned '/tiff-sw.js?v=2'); otherwise '?'.
   const sep = swUrl.includes('?') ? '&' : '?'

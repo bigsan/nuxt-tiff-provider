@@ -15,20 +15,27 @@ import { registerTiffServiceWorker } from '@tiff-provider/core/register'
 
 // Serve dist/tiff-sw.js at your site root, then:
 registerTiffServiceWorker({ scope: '/', cacheName: 'tiff-webp-v1', quality: 0.8 })
+// paramPrefix defaults to 'tp'; override (e.g. { paramPrefix: 'img' }) only to
+// avoid colliding with query params your sources already carry.
 ```
 
 ## Build a provider URL
 
+Modifiers are namespaced under `paramPrefix` (default `tp`); `tp=1` is the
+interception marker. Provider params merge into any existing query and the source
+hash is preserved, so signed / query-carrying URLs stay valid.
+
 ```ts
 import { buildTiffUrl } from '@tiff-provider/core/url'
-buildTiffUrl('/photo.tif', { width: 640 }) // → /photo.tif?fmt=webp&w=640
+buildTiffUrl('/photo.tif', { width: 640 })        // → /photo.tif?tp=1&tp-w=640
+buildTiffUrl('/p.tif?token=abc', { height: 480 }) // → /p.tif?token=abc&tp=1&tp-h=480
 ```
 
 ## Compose into an existing Service Worker
 
 The same artifact works via `importScripts('/tiff-sw.js')` inside your own SW.
 
-> Caveats for this path: the engine reads its `?cache=` / `?q=` config from the
+> Caveats for this path: the engine reads its `?cache=` / `?q=` / `?prefix=` config from the
 > **top-level** service worker's URL, so options passed on the
 > `importScripts('/tiff-sw.js?...')` URL are NOT read — rely on the defaults
 > (`tiff-webp-v1`, quality 0.8) or replicate that config in your own SW. The
@@ -39,8 +46,9 @@ The same artifact works via `importScripts('/tiff-sw.js')` inside your own SW.
 
 From `@tiff-provider/core` (main entry):
 `buildTiffUrl`, `decodeTiff`, `decodeWithUtif`, `decodeWithGeotiff`,
-`normalizeToRgba`, `encodeWebp`, `isTiffPath`, `shouldIntercept`,
-`parseModifiers`, `decideStrategy`.
+`normalizeToRgba`, `encodeWebp`, `fitDimensions`, `isTiffPath`,
+`shouldIntercept`, `parseModifiers`, `stripProviderParams`, `decideStrategy`.
 
 From `@tiff-provider/core/register` (browser-only `/register` subpath, not the
-main entry): `registerTiffServiceWorker`, `detectNativeTiff`.
+main entry): `registerTiffServiceWorker`, `detectNativeTiff`,
+`isTiffProviderRequest`.
