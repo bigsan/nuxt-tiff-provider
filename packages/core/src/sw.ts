@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { decodeTiff } from './decoder'
 import { encodeWebp } from './encoder'
-import { parseModifiers, shouldIntercept, stripProviderParams } from './router'
+import { cacheKey, parseModifiers, shouldIntercept, stripProviderParams } from './router'
 
 declare const self: ServiceWorkerGlobalScope
 
@@ -34,15 +34,18 @@ self.addEventListener('message', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url)
   if (!shouldIntercept(url, PREFIX)) return
-  event.respondWith(handleTiff(event.request, url))
+  event.respondWith(handleTiff(url))
 })
 
-async function handleTiff(request: Request, url: URL): Promise<Response> {
+async function handleTiff(url: URL): Promise<Response> {
   // Safari renders TIFF natively — skip the transcode entirely.
   if (nativeTiff) return fetch(rawRequest(url))
 
   const cache = await caches.open(CACHE_NAME)
-  const cached = await cache.match(request)
+  // Normalize the cache key so a cold-load retry (which adds {prefix}-retry to
+  // bust the browser cache) shares the same entry as a normal request.
+  const key = cacheKey(url, PREFIX)
+  const cached = await cache.match(key)
   if (cached) return cached
 
   try {
@@ -67,7 +70,7 @@ async function handleTiff(request: Request, url: URL): Promise<Response> {
         'X-Tiff-Transcoded': '1',
       },
     })
-    await cache.put(request, response.clone())
+    await cache.put(key, response.clone())
     await notifyTimings(url.pathname, t1 - t0, t2 - t1, t2 - t0)
     return response
   } catch (err) {

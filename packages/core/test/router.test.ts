@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  cacheKey,
   decideStrategy,
   isTiffPath,
   parseModifiers,
@@ -69,6 +70,29 @@ describe('stripProviderParams', () => {
   it('honors a configurable prefix', () => {
     expect(stripProviderParams(new URL('https://x.test/a.tif?img=1&img-w=640&keep=1'), 'img')).toBe(
       'https://x.test/a.tif?keep=1',
+    )
+  })
+  it('also strips the namespaced retry buster (it lives under the prefix)', () => {
+    expect(
+      stripProviderParams(new URL('https://x.test/a.tif?token=1&tp=1&tp-w=640&tp-retry=1'), 'tp'),
+    ).toBe('https://x.test/a.tif?token=1')
+  })
+})
+
+describe('cacheKey', () => {
+  it('drops the retry buster so recovered and normal requests share an entry', () => {
+    expect(cacheKey(new URL('https://x.test/a.tif?tp=1&tp-w=640&tp-retry=1'), 'tp')).toBe(
+      cacheKey(new URL('https://x.test/a.tif?tp=1&tp-w=640'), 'tp'),
+    )
+  })
+  it('keeps size modifiers so different sizes stay distinct', () => {
+    expect(cacheKey(new URL('https://x.test/a.tif?tp=1&tp-w=640'), 'tp')).not.toBe(
+      cacheKey(new URL('https://x.test/a.tif?tp=1&tp-w=320'), 'tp'),
+    )
+  })
+  it('honors a configurable prefix', () => {
+    expect(cacheKey(new URL('https://x.test/a.tif?img=1&img-w=640&img-retry=1'), 'img')).toBe(
+      'https://x.test/a.tif?img=1&img-w=640',
     )
   })
 })

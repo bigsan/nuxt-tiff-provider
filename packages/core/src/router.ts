@@ -43,6 +43,17 @@ export function stripProviderParams(url: URL, prefix: string): string {
   return url.origin + url.pathname + (qs ? `?${qs}` : '')
 }
 
+/**
+ * Cache key for a transcode request: drop the recovery cache-buster
+ * (`{prefix}-retry`) so a recovered request and a normal one hit the same entry,
+ * while keeping size modifiers (`{prefix}-w`/`-h`) that change the output.
+ */
+export function cacheKey(url: URL, prefix: string): string {
+  const u = new URL(url.href)
+  u.searchParams.delete(`${prefix}-retry`)
+  return u.href
+}
+
 export function decideStrategy(o: { nativeTiff: boolean; cacheHit: boolean }): Strategy {
   if (o.nativeTiff) return 'passthrough'
   if (o.cacheHit) return 'cache'

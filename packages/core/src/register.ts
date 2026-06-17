@@ -49,22 +49,27 @@ export function isTiffProviderRequest(url: string, prefix: string): boolean {
 }
 
 /**
- * Append a cache-busting marker so a retried request bypasses the browser's
- * cached raw-TIFF response and reaches the (now-controlling) Service Worker.
+ * Append a namespaced cache-busting marker (`{prefix}-retry`) so a retried
+ * request bypasses the browser's cached raw-TIFF response and reaches the
+ * (now-controlling) Service Worker. Living under the prefix means the SW's
+ * `stripProviderParams` drops it from the upstream fetch automatically, and
+ * `cacheKey` normalizes it away so retries share the normal cache entry.
  */
-export function withRetryParam(url: string): string {
-  return url + (url.includes('?') ? '&' : '?') + '_tiffretry=1'
+export function withRetryParam(url: string, prefix: string): string {
+  return url + (url.includes('?') ? '&' : '?') + `${prefix}-retry=1`
 }
 
 /** Apply {@link withRetryParam} to every candidate URL in a `srcset` value. */
-export function withRetrySrcset(srcset: string): string {
+export function withRetrySrcset(srcset: string, prefix: string): string {
   return srcset
     .split(',')
     .map((part) => {
       const seg = part.trim()
       if (!seg) return seg
       const sp = seg.indexOf(' ')
-      return sp === -1 ? withRetryParam(seg) : withRetryParam(seg.slice(0, sp)) + seg.slice(sp)
+      return sp === -1
+        ? withRetryParam(seg, prefix)
+        : withRetryParam(seg.slice(0, sp), prefix) + seg.slice(sp)
     })
     .join(', ')
 }
@@ -83,8 +88,8 @@ function installRacedImageRecovery(prefix: string): void {
   const retry = (img: HTMLImageElement): void => {
     if (img.dataset.tiffRetried || !isTiffProviderRequest(img.currentSrc || img.src, prefix)) return
     img.dataset.tiffRetried = '1'
-    if (img.srcset) img.srcset = withRetrySrcset(img.srcset)
-    img.src = withRetryParam(img.src)
+    if (img.srcset) img.srcset = withRetrySrcset(img.srcset, prefix)
+    img.src = withRetryParam(img.src, prefix)
   }
 
   // Images that fail once the SW already controls the page: retry on the spot.
