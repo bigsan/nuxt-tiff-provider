@@ -11,3 +11,6 @@ playground/public/samples
 test-results
 playwright-report
 coverage
+
+# superpowers-generated planning/spec docs — local-only, never published
+docs/
