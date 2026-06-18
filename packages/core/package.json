@@ -1,6 +1,6 @@
 {
   "name": "@tiff-provider/core",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Framework-agnostic in-browser TIFF→WebP transcoder: decoder, encoder, and a prebuilt Service Worker.",
   "keywords": [
     "tiff",
