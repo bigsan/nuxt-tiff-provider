@@ -42,13 +42,13 @@
   },
   "dependencies": {
     "@nuxt/image": "^1.11.0",
-    "@nuxt/kit": "^3.13.0",
+    "@nuxt/kit": "^4.0.0",
     "@tiff-provider/core": "workspace:*",
     "defu": "^6.1.0"
   },
   "devDependencies": {
     "@nuxt/module-builder": "^1.0.0",
-    "@nuxt/schema": "^3.13.0",
+    "@nuxt/schema": "^4.0.0",
     "@nuxt/test-utils": "^3.14.0",
     "@types/node": "^22",
     "nuxt": "^4.0.0",
@@ -56,6 +56,6 @@
     "vitest": "^3.2.0"
   },
   "peerDependencies": {
-    "nuxt": "^3.0.0 || ^4.0.0"
+    "nuxt": "^4.0.0"
   }
 }
