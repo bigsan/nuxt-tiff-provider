@@ -16,6 +16,13 @@
   ],
   "author": "San Chen <bigsan.chen@gmail.com>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bigsan/nuxt-tiff-provider.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/bigsan/nuxt-tiff-provider/tree/main/packages/core#readme",
+  "bugs": "https://github.com/bigsan/nuxt-tiff-provider/issues",
   "type": "module",
   "files": [
     "dist"
