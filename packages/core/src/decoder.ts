@@ -1,4 +1,4 @@
-import UTIF from 'utif'
+import UTIF from 'utif2'
 import { fromArrayBuffer } from 'geotiff'
 // Side effect: statically register geotiff's raw codec so the 16-bit fallback
 // decodes inside a Service Worker, where geotiff's lazy `import()` is forbidden.
@@ -12,7 +12,7 @@ export interface DecodedImage {
 }
 
 /**
- * Decode common 8-bit baseline TIFFs with UTIF (tiny, pure JS).
+ * Decode common bilevel / 8-bit TIFFs with utif2 (pure JS).
  * Throws on >8-bit depth so the geotiff fallback handles those.
  * Throws `'UTIF: no IFDs found'` when the buffer yields no IFDs.
  */
@@ -22,10 +22,9 @@ export function decodeWithUtif(buffer: ArrayBuffer): DecodedImage {
   // and defends UTIF's `IFD[]` contract; UTIF returns >=1 IFD in practice.
   const page = ifds[0]
   if (!page) throw new Error('UTIF: no IFDs found')
-  const bits = page.t258
-  // `t258` (BitsPerSample) is optional in the UTIF type and absent on some
-  // baseline 8-bit files; absent ⇒ treat as 8-bit. A TIFF that omits the tag
-  // yet is actually >8-bit would slip past this guard — out of MVP scope.
+  const bits = page.t258 as number[] | undefined
+  // BitsPerSample is optional (defaults to 1); utif2 also tolerates missing
+  // photometric metadata on bilevel drawings.
   if (bits && Math.max(...bits) > 8) {
     throw new Error('UTIF: bit depth > 8 not supported')
   }

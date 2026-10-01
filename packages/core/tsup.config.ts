@@ -1,13 +1,13 @@
 import { defineConfig } from 'tsup'
 
 export default defineConfig([
-  // Importable API: ESM + CJS + types. utif/geotiff/ufo stay external (declared deps).
+  // Importable API: ESM + CJS + types. utif2/geotiff/ufo stay external (declared deps).
   {
     entry: { index: 'src/index.ts', url: 'src/url.ts', register: 'src/register.ts' },
     format: ['esm', 'cjs'],
     dts: true,
     clean: true,
-    external: ['utif', 'geotiff', 'ufo'],
+    external: ['utif2', 'geotiff', 'ufo'],
   },
   // The Service Worker artifact: one self-contained classic IIFE, everything inlined.
   {

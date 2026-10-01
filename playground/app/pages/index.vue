@@ -24,6 +24,13 @@ const CORS_ORIGIN = "http://localhost:3738";
 // Cases that exercise this release's fixes.
 const showcase = [
   {
+    key: "group4",
+    src: "/samples/group4-missing-photometric.tif",
+    label: "CCITT Group 4 drawing — missing photometric metadata (utif2)",
+    width: 640,
+    height: undefined as number | undefined,
+  },
+  {
     key: "query",
     src: "/samples/rgb8.tif?token=demo-signed-abc123",
     label:
