@@ -1,5 +1,11 @@
 # @tiff-provider/core
 
+## 0.3.1
+
+### Patch Changes
+
+- fa44ad2: Add `repository`, `homepage`, and `bugs` metadata so npm shows the source repository and links back to GitHub.
+
 ## 0.3.0
 
 ### Minor Changes

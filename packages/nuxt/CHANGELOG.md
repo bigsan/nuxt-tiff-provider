@@ -1,5 +1,14 @@
 # nuxt-tiff-provider
 
+## 0.3.1
+
+### Patch Changes
+
+- e8c571f: Align `@nuxt/kit` and `@nuxt/schema` to v4 and narrow the `nuxt` peer dependency to `^4.0.0`, matching the only version the module is built and tested against. This removes a mixed v3/v4 `@nuxt/schema` in the tree that broke the module build (non-portable inferred types, TS2742).
+- fa44ad2: Add `repository`, `homepage`, and `bugs` metadata so npm shows the source repository and links back to GitHub.
+- Updated dependencies [fa44ad2]
+  - @tiff-provider/core@0.3.1
+
 ## 0.3.0
 
 ### Minor Changes
