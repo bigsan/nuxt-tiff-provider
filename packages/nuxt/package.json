@@ -1,6 +1,6 @@
 {
   "name": "nuxt-tiff-provider",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Nuxt module: render TIFFs via @nuxt/image off the main thread in a Service Worker.",
   "keywords": [
     "nuxt",

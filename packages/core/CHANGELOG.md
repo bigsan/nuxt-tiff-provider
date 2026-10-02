@@ -1,5 +1,12 @@
 # @tiff-provider/core
 
+## 0.3.2
+
+### Patch Changes
+
+- 15e53df: Replace utif with utif2 to correctly render bilevel CCITT Group 4 drawings with missing photometric metadata instead of nearly black output. Preserve the existing decoder API and geotiff fallback, and add offline pixel-level and Service Worker regression coverage.
+- 5a0a46c: Keep CMYK TIFFs decoding correctly after the switch to utif2. utif2's CMYK path reads the global `window`, which does not exist in a Service Worker or in Node, so the decode threw and the geotiff fallback rendered the four inks as RGBA — a nearly transparent image. The decoder now lends utif2 a `window` for the duration of that one call. Adds a CMYK fixture with decoder and Service Worker regression coverage.
+
 ## 0.3.1
 
 ### Patch Changes
