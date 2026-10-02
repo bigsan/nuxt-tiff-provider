@@ -2,7 +2,7 @@
   "name": "nuxt-tiff-provider-workspace",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@10.17.1",
+  "packageManager": "pnpm@10.34.6",
   "scripts": {
     "gen:samples": "tsx scripts/gen-samples.ts",
     "build:core": "pnpm --filter @tiff-provider/core build",
