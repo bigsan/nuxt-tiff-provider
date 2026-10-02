@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 
 const RGB8 = '/samples/rgb8.tif'
 const GRAY16 = '/samples/gray16.tif'
+const GROUP4 = '/samples/group4-missing-photometric.tif'
 
 async function naturalWidth(page: import('@playwright/test').Page, testid: string): Promise<number> {
   return page.getByTestId(testid).evaluate((el) => (el as HTMLImageElement).naturalWidth)
@@ -90,4 +91,47 @@ test('transcodes a cross-origin (CORS) source', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByTestId('show-cors')).toBeVisible()
   await expect.poll(() => naturalWidth(page, 'show-cors'), { timeout: 20_000 }).toBeGreaterThan(0)
+})
+
+test('transcodes the Group 4 drawing with white background and visible ink', async ({ page }) => {
+  // The drawing omits photometric metadata. Old UTIF produced a nearly black
+  // WebP without throwing, so naturalWidth alone cannot catch this regression.
+  const responsePromise = page.waitForResponse((res) => {
+    const u = new URL(res.url())
+    return u.pathname === GROUP4 && u.searchParams.has('tpx')
+  })
+  await page.goto('/')
+  const response = await responsePromise
+  expect(response.headers()['content-type']).toBe('image/webp')
+  expect(response.headers()['x-tiff-transcoded']).toBe('1')
+  await expect(page.getByTestId('show-group4')).toBeVisible()
+  await expect.poll(() => naturalWidth(page, 'show-group4'), { timeout: 20_000 }).toBe(640)
+  const { w, h } = await naturalSize(page, 'show-group4')
+  expect(w).toBe(640)
+  expect(h).toBe(479)
+
+  // Allow resizing and lossy WebP encoding, but require a bright background,
+  // visible dark ink, and opaque pixels rather than merely a loadable image.
+  const pixels = await page.getByTestId('show-group4').evaluate((el) => {
+    const image = el as HTMLImageElement
+    const canvas = document.createElement('canvas')
+    canvas.width = image.naturalWidth
+    canvas.height = image.naturalHeight
+    const ctx = canvas.getContext('2d')!
+    ctx.drawImage(image, 0, 0)
+    const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    let bright = 0
+    let dark = 0
+    let transparent = 0
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i]! > 240 && data[i + 1]! > 240 && data[i + 2]! > 240) bright++
+      if (data[i]! < 80 && data[i + 1]! < 80 && data[i + 2]! < 80) dark++
+      if (data[i + 3] !== 255) transparent++
+    }
+    return { bright: bright / (data.length / 4), dark: dark / (data.length / 4), transparent }
+  })
+  expect(pixels.bright).toBeGreaterThan(0.85)
+  expect(pixels.dark).toBeGreaterThan(0.005)
+  expect(pixels.dark).toBeLessThan(0.15)
+  expect(pixels.transparent).toBe(0)
 })

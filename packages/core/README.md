@@ -1,7 +1,7 @@
 # @tiff-provider/core
 
 Framework-agnostic in-browser TIFF→WebP transcoder. Ships the decode/encode
-logic and a **prebuilt classic Service Worker** (`tiff-sw.js`) with `utif` +
+logic and a **prebuilt classic Service Worker** (`tiff-sw.js`) with `utif2` +
 `geotiff` (all codecs) inlined. For Nuxt, use `nuxt-tiff-provider` instead.
 
 ## Register the Service Worker

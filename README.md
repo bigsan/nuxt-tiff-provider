@@ -51,7 +51,7 @@ pnpm run test:e2e      # Playwright: render, liveness, cache, query-string, heig
 3. Safari (native TIFF) is detected client-side and the SW passes through.
 
 The shipped SW is a prebuilt classic IIFE (`dist/tiff-sw.js` inside
-`@tiff-provider/core`) with `utif` + `geotiff` and **all geotiff codecs**
+`@tiff-provider/core`) with `utif2` + `geotiff` and **all geotiff codecs**
 inlined at build time. Consumers never see the dev-time constraint described in
 [w3c/ServiceWorker#1356][sw1356]: that runtime `import()` is forbidden inside a
 Service Worker. The classic IIFE has every codec statically inlined, so

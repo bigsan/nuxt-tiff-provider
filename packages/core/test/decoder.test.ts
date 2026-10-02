@@ -8,6 +8,33 @@ function load(name: string): ArrayBuffer {
   return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
 }
 
+// Original, unmodified CCITT Group 4 drawing (3338 bytes):
+// https://impat.webpat.co/v1/ipfs/drw/twb_I406387_097107333_B1/0/1
+// SHA256: e27a257cfab7f943cd38a173c9df53196c91b5910e197e20135b08cb6e38633d
+const DRAWING = 'group4-missing-photometric.tif'
+
+describe('Group 4 regression', () => {
+  it.each([
+    ['decodeWithUtif', decodeWithUtif],
+    ['decodeTiff', decodeTiff],
+  ])('%s decodes a drawing with missing photometric metadata', async (_, decode) => {
+    const { width, height, rgba } = await decode(load(DRAWING))
+    expect(width).toBe(1395)
+    expect(height).toBe(1044)
+    expect(rgba).toHaveLength(width * height * 4)
+
+    // Check known background and ink pixels to catch black output or inversion.
+    const samples = [
+      { x: 0, y: 0, expected: [255, 255, 255, 255] },
+      { x: 231, y: 67, expected: [0, 0, 0, 255] },
+    ]
+    for (const { x, y, expected } of samples) {
+      const offset = (y * width + x) * 4
+      expect(Array.from(rgba.slice(offset, offset + 4)), `pixel (${x}, ${y})`).toEqual(expected)
+    }
+  })
+})
+
 describe('decodeWithUtif', () => {
   it('decodes an 8-bit RGB TIFF to RGBA', () => {
     const out = decodeWithUtif(load('rgb8.tif'))

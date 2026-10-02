@@ -1,7 +1,7 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { Buffer } from 'node:buffer'
-import UTIF from 'utif'
+import UTIF from 'utif2'
 
 /** 8-bit RGBA gradient → baseline TIFF (UTIF decode path). */
 function makeRgb8(width: number, height: number): ArrayBuffer {
@@ -15,7 +15,7 @@ function makeRgb8(width: number, height: number): ArrayBuffer {
       rgba[i + 3] = 255
     }
   }
-  return UTIF.encodeImage(rgba.buffer, width, height)
+  return UTIF.encodeImage(rgba, width, height)
 }
 
 /**
@@ -93,6 +93,13 @@ function main(): void {
   write('playground/public/samples/gray16.tif', gray16)
   write('packages/core/test/fixtures/rgb8.tif', rgb8)
   write('packages/core/test/fixtures/gray16.tif', gray16)
+
+  // Preserve the original Group 4 bytes and missing tags; never re-encode this fixture.
+  const drawing = readFileSync(resolve('packages/core/test/fixtures/group4-missing-photometric.tif'))
+  write(
+    'playground/public/samples/group4-missing-photometric.tif',
+    drawing.buffer.slice(drawing.byteOffset, drawing.byteOffset + drawing.byteLength),
+  )
 }
 
 try {
