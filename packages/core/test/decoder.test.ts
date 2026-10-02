@@ -35,6 +35,41 @@ describe('Group 4 regression', () => {
   })
 })
 
+describe('CMYK regression', () => {
+  // utif2's CMYK branch reads the bare global `window`, which is missing in a
+  // Service Worker and in this node environment alike. Unguarded it throws, and
+  // the geotiff fallback then misreads the four inks as RGBA — K becomes alpha.
+  it.each([
+    ['decodeWithUtif', decodeWithUtif],
+    ['decodeTiff', decodeTiff],
+  ])('%s decodes CMYK to opaque RGB where there is no window', async (_, decode) => {
+    expect('window' in globalThis).toBe(false)
+    const { width, height, rgba } = await decode(load('cmyk8.tif'))
+    expect(width).toBe(256)
+    expect(height).toBe(192)
+    expect(rgba).toHaveLength(width * height * 4)
+
+    // 20% black everywhere; cyan ramps left→right, magenta top→bottom.
+    const samples = [
+      { x: 0, y: 0, expected: [204, 204, 204, 255] },
+      { x: 255, y: 0, expected: [1, 204, 204, 255] },
+      { x: 0, y: 191, expected: [204, 1, 204, 255] },
+    ]
+    for (const { x, y, expected } of samples) {
+      const offset = (y * width + x) * 4
+      expect(Array.from(rgba.slice(offset, offset + 4)), `pixel (${x}, ${y})`).toEqual(expected)
+    }
+    // Every pixel is opaque bar the very last: utif (3.1.0 and utif2 alike) reads
+    // one sample past the end of a four-ink image and leaves that alpha at 0.
+    let translucent = 0
+    for (let i = 3; i < rgba.length - 4; i += 4) if (rgba[i] !== 255) translucent++
+    expect(translucent).toBe(0)
+
+    // The decoder only lends utif2 a `window` for the call; it must not leak.
+    expect('window' in globalThis).toBe(false)
+  })
+})
+
 describe('decodeWithUtif', () => {
   it('decodes an 8-bit RGB TIFF to RGBA', () => {
     const out = decodeWithUtif(load('rgb8.tif'))

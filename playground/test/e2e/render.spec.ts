@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test'
 const RGB8 = '/samples/rgb8.tif'
 const GRAY16 = '/samples/gray16.tif'
 const GROUP4 = '/samples/group4-missing-photometric.tif'
+const CMYK8 = '/samples/cmyk8.tif'
 
 async function naturalWidth(page: import('@playwright/test').Page, testid: string): Promise<number> {
   return page.getByTestId(testid).evaluate((el) => (el as HTMLImageElement).naturalWidth)
@@ -134,4 +135,64 @@ test('transcodes the Group 4 drawing with white background and visible ink', asy
   expect(pixels.dark).toBeGreaterThan(0.005)
   expect(pixels.dark).toBeLessThan(0.15)
   expect(pixels.transparent).toBe(0)
+})
+
+test('transcodes a CMYK TIFF to opaque RGB inside the Service Worker', async ({ page }) => {
+  // utif2's CMYK branch reads `window`, which a Service Worker does not have.
+  // Unguarded, the decode throws and the geotiff fallback misreads the four inks
+  // as RGBA — K becomes alpha. That still paints a (ghostly) image, so
+  // naturalWidth alone cannot catch this regression.
+  const responsePromise = page.waitForResponse((res) => {
+    const u = new URL(res.url())
+    return u.pathname === CMYK8 && u.searchParams.has('tpx')
+  })
+  await page.goto('/')
+  const response = await responsePromise
+  expect(response.headers()['content-type']).toBe('image/webp')
+  expect(response.headers()['x-tiff-transcoded']).toBe('1')
+  await expect(page.getByTestId('show-cmyk')).toBeVisible()
+  await expect.poll(() => naturalWidth(page, 'show-cmyk'), { timeout: 20_000 }).toBe(256)
+
+  // Average an 8×8 block near three corners (tolerates lossy WebP): the sample
+  // ramps cyan left→right and magenta top→bottom over a constant 20% black.
+  const pixels = await page.getByTestId('show-cmyk').evaluate((el) => {
+    const image = el as HTMLImageElement
+    const canvas = document.createElement('canvas')
+    canvas.width = image.naturalWidth
+    canvas.height = image.naturalHeight
+    const ctx = canvas.getContext('2d')!
+    ctx.drawImage(image, 0, 0)
+    const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const block = (x0: number, y0: number): number[] => {
+      const sum = [0, 0, 0]
+      for (let y = y0; y < y0 + 8; y++) {
+        for (let x = x0; x < x0 + 8; x++) {
+          const i = (y * canvas.width + x) * 4
+          for (let c = 0; c < 3; c++) sum[c]! += data[i + c]!
+        }
+      }
+      return sum.map((v) => Math.round(v / 64))
+    }
+    let transparent = 0
+    for (let i = 3; i < data.length; i += 4) if (data[i] !== 255) transparent++
+    return {
+      topLeft: block(4, 4),
+      topRight: block(canvas.width - 12, 4),
+      bottomLeft: block(4, canvas.height - 12),
+      transparent,
+    }
+  })
+  const [tlR, tlG, tlB] = pixels.topLeft
+  const [trR, trG, trB] = pixels.topRight
+  const [blR, blG, blB] = pixels.bottomLeft
+  // No ink but the black: light gray.
+  expect(Math.min(tlR!, tlG!, tlB!)).toBeGreaterThan(150)
+  // Full cyan removes red; full magenta removes green.
+  expect(trR).toBeLessThan(60)
+  expect(Math.min(trG!, trB!)).toBeGreaterThan(150)
+  expect(blG).toBeLessThan(60)
+  expect(Math.min(blR!, blB!)).toBeGreaterThan(150)
+  // K read as alpha would leave every pixel translucent. One is tolerated: utif
+  // (3.1.0 and utif2 alike) leaves the final pixel's alpha at 0 on four-ink images.
+  expect(pixels.transparent).toBeLessThanOrEqual(1)
 })

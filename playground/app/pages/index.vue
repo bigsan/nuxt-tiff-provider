@@ -31,6 +31,13 @@ const showcase = [
     height: undefined as number | undefined,
   },
   {
+    key: "cmyk",
+    src: "/samples/cmyk8.tif",
+    label: "CMYK (Separated) — decoded in the Service Worker, where utif2 finds no window",
+    width: 640,
+    height: undefined as number | undefined,
+  },
+  {
     key: "query",
     src: "/samples/rgb8.tif?token=demo-signed-abc123",
     label:

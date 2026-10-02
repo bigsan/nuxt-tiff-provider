@@ -12,6 +12,27 @@ export interface DecodedImage {
 }
 
 /**
+ * `UTIF.toRGBA8` for scopes without a `window` (Service Worker, Node).
+ *
+ * utif2's CMYK branch reads the bare global (`if (window.UDOC)`), a
+ * ReferenceError where none exists. Left alone, that sends every CMYK TIFF to
+ * the geotiff fallback, which misreads the four inks as RGBA — K becomes alpha —
+ * and the Service Worker caches the result. Lend utif2 an empty `window` for
+ * this one synchronous call only: a lasting one would make other code in the
+ * scope mistake it for a page.
+ */
+function toRGBA8(page: Parameters<typeof UTIF.toRGBA8>[0]): Uint8Array {
+  const scope = globalThis as { window?: unknown }
+  if (typeof scope.window !== 'undefined') return UTIF.toRGBA8(page)
+  scope.window = {}
+  try {
+    return UTIF.toRGBA8(page)
+  } finally {
+    delete scope.window
+  }
+}
+
+/**
  * Decode common bilevel / 8-bit TIFFs with utif2 (pure JS).
  * Throws on >8-bit depth so the geotiff fallback handles those.
  * Throws `'UTIF: no IFDs found'` when the buffer yields no IFDs.
@@ -29,7 +50,7 @@ export function decodeWithUtif(buffer: ArrayBuffer): DecodedImage {
     throw new Error('UTIF: bit depth > 8 not supported')
   }
   UTIF.decodeImage(buffer, page)
-  const rgba = UTIF.toRGBA8(page)
+  const rgba = toRGBA8(page)
   return {
     width: page.width,
     height: page.height,
