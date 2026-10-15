@@ -1,5 +1,16 @@
 # nuxt-tiff-provider
 
+## 0.4.0
+
+### Minor Changes
+
+- 88fdd18: Add an `ignoreNativeTiff` option (Nuxt module and `registerTiffServiceWorker`). When true, the native-TIFF probe is skipped and the Service Worker transcodes TIFF to WebP even in browsers that paint TIFF natively (Safari), so every browser gets the same resized, cached WebP. Default false keeps the Safari passthrough.
+
+### Patch Changes
+
+- Updated dependencies [88fdd18]
+  - @tiff-provider/core@0.4.0
+
 ## 0.3.2
 
 ### Patch Changes
