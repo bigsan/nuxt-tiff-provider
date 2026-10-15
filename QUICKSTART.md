@@ -93,6 +93,7 @@ export default defineNuxtConfig({
     autoRegister: true,        // false → register the SW yourself
     retryRacedImages: true,    // re-fetch images that raced the SW on first load
     paramPrefix: 'tp',         // query-param namespace + interception marker
+    ignoreNativeTiff: false,   // true → transcode in Safari too, skip native passthrough
   },
 })
 ```
@@ -106,7 +107,9 @@ export default defineNuxtConfig({
   key (S3 serving TIFF via `Content-Type`) is fine. Building such a URL by hand
   instead of via `<NuxtImg>`? Add the marker yourself with `buildTiffUrl`, or by
   appending `?tp=1` (use your `paramPrefix` if you changed it).
-- **Safari** paints TIFF natively — the SW detects this and passes through.
+- **Safari** paints TIFF natively — the SW detects this and passes through. Set
+  `ignoreNativeTiff: true` to transcode there too (same WebP output, resizing
+  and cache in every browser).
 - **First cold visit:** the browser may request a TIFF before the Service Worker
   controls the page, so it briefly loads the raw `.tif` and fails to decode. The
   module notices the failed image and re-fetches it once the SW is in control —

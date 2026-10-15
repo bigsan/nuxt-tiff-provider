@@ -34,13 +34,15 @@ export default defineNuxtConfig({
     autoRegister: true,        // false → call registerTiffServiceWorker() yourself
     retryRacedImages: true,    // re-fetch images that raced the SW on first load
     paramPrefix: 'tp',         // query-param namespace + interception marker
+    ignoreNativeTiff: false,   // true → transcode in Safari too, skip native passthrough
   },
 })
 ```
 
 ## Notes
 
-- Safari paints TIFF natively; the SW detects this and passes through.
+- Safari paints TIFF natively; the SW detects this and passes through. Set
+  `ignoreNativeTiff: true` to transcode there too.
 - First cold visit: images requested before the SW took control are re-fetched
   automatically once it does (disable with `retryRacedImages: false`).
 - Already run your own Service Worker? Set `autoRegister: false` and

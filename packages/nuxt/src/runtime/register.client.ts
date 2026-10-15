@@ -9,6 +9,7 @@ export default defineNuxtPlugin(() => {
     scope?: string
     retryRacedImages?: boolean
     paramPrefix?: string
+    ignoreNativeTiff?: boolean
   }
   void registerTiffServiceWorker({
     scope: cfg.scope,
@@ -16,5 +17,6 @@ export default defineNuxtPlugin(() => {
     quality: cfg.quality,
     retryRacedImages: cfg.retryRacedImages,
     paramPrefix: cfg.paramPrefix,
+    ignoreNativeTiff: cfg.ignoreNativeTiff,
   })
 })

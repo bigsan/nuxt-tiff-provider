@@ -17,6 +17,12 @@ export interface RegisterOptions {
    * passed to the SW via `?prefix=`. Default 'tp'.
    */
   paramPrefix?: string
+  /**
+   * Transcode in the Service Worker even where the browser paints TIFF natively
+   * (Safari), skipping the native-support probe. Use it for one decoder and one
+   * output everywhere, e.g. WebP sizes and resizing. Default false.
+   */
+  ignoreNativeTiff?: boolean
 }
 
 // A minimal 2x2 baseline TIFF. createImageBitmap() resolves it only where the
@@ -115,7 +121,8 @@ function installRacedImageRecovery(prefix: string): void {
 
 /**
  * Register the prebuilt transcode Service Worker and tell it whether the browser
- * paints TIFF natively (→ passthrough). No-op outside a SW-capable browser.
+ * paints TIFF natively (→ passthrough, unless `ignoreNativeTiff`). No-op outside
+ * a SW-capable browser.
  */
 export async function registerTiffServiceWorker(
   opts: RegisterOptions = {},
@@ -128,6 +135,7 @@ export async function registerTiffServiceWorker(
     quality,
     retryRacedImages = true,
     paramPrefix = 'tp',
+    ignoreNativeTiff = false,
   } = opts
 
   // Install before registering so the capture listener is in place as early as possible.
@@ -144,7 +152,7 @@ export async function registerTiffServiceWorker(
 
   const reg = await navigator.serviceWorker.register(url, { scope })
 
-  const nativeTiff = await detectNativeTiff()
+  const nativeTiff = ignoreNativeTiff ? false : await detectNativeTiff()
   const ready = await navigator.serviceWorker.ready
   ready.active?.postMessage({ type: 'NATIVE_TIFF', value: nativeTiff })
   return reg

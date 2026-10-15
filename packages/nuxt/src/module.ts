@@ -25,6 +25,8 @@ export interface ModuleOptions {
   retryRacedImages: boolean
   /** Query-param namespace for modifiers and the interception marker. Default 'tp'. */
   paramPrefix: string
+  /** Transcode in the SW even where TIFF is native (Safari). Default false. */
+  ignoreNativeTiff: boolean
 }
 
 const module = defineNuxtModule<ModuleOptions>({
@@ -41,6 +43,7 @@ const module = defineNuxtModule<ModuleOptions>({
     autoRegister: true,
     retryRacedImages: true,
     paramPrefix: 'tp',
+    ignoreNativeTiff: false,
   },
   async setup(options, nuxt) {
     const resolver = createResolver(import.meta.url)
@@ -114,6 +117,7 @@ const module = defineNuxtModule<ModuleOptions>({
         scope: options.scope,
         retryRacedImages: options.retryRacedImages,
         paramPrefix: options.paramPrefix,
+        ignoreNativeTiff: options.ignoreNativeTiff,
       },
     )
     if (options.autoRegister) {

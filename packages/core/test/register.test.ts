@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest'
-import { isTiffProviderRequest, withRetryParam, withRetrySrcset } from '../src/register'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  isTiffProviderRequest,
+  registerTiffServiceWorker,
+  withRetryParam,
+  withRetrySrcset,
+} from '../src/register'
 
 describe('withRetryParam', () => {
   it('appends the namespaced retry marker with ? when the url has no query', () => {
@@ -39,5 +44,39 @@ describe('isTiffProviderRequest', () => {
   })
   it('honors a configurable prefix', () => {
     expect(isTiffProviderRequest('/a.tif?img=1', 'img')).toBe(true)
+  })
+})
+
+describe('registerTiffServiceWorker native-TIFF message', () => {
+  // A browser that paints TIFF natively (createImageBitmap accepts the probe),
+  // with a Service Worker that records what the page tells it.
+  function stubNativeTiffBrowser() {
+    const postMessage = vi.fn()
+    const createImageBitmap = vi.fn(async () => ({ close() {} }))
+    vi.stubGlobal('createImageBitmap', createImageBitmap)
+    vi.stubGlobal('navigator', {
+      serviceWorker: {
+        register: vi.fn(async () => ({})),
+        ready: Promise.resolve({ active: { postMessage } }),
+      },
+    })
+    return { postMessage, createImageBitmap }
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('tells the SW to pass through where TIFF is native', async () => {
+    const { postMessage } = stubNativeTiffBrowser()
+    await registerTiffServiceWorker()
+    expect(postMessage).toHaveBeenCalledWith({ type: 'NATIVE_TIFF', value: true })
+  })
+
+  it('skips the probe and forces transcoding with ignoreNativeTiff', async () => {
+    const { postMessage, createImageBitmap } = stubNativeTiffBrowser()
+    await registerTiffServiceWorker({ ignoreNativeTiff: true })
+    expect(createImageBitmap).not.toHaveBeenCalled()
+    expect(postMessage).toHaveBeenCalledWith({ type: 'NATIVE_TIFF', value: false })
   })
 })
