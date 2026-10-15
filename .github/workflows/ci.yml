@@ -2,6 +2,8 @@ name: CI
 on:
   push: { branches: [main] }
   pull_request:
+permissions:
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -17,3 +19,33 @@ jobs:
       - run: pnpm --filter nuxt-tiff-provider test
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm run test:e2e
+
+  # Runs only after `test` passes on a push to main. With pending changesets it
+  # opens or updates the "Version Packages" PR; once that PR is merged it
+  # publishes to npm through trusted publishing (OIDC, no token, no OTP), then
+  # pushes the tags and creates the GitHub Releases. npm trusts this file by
+  # name (ci.yml), so renaming it breaks publishing.
+  release:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency: release
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      # Node 24 bundles npm 11; trusted publishing needs npm >= 11.5.1 (Node 22
+      # ships npm 10). No `registry-url`: setup-node would then write an .npmrc
+      # token placeholder that pre-empts the OIDC exchange.
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+        with:
+          version: pnpm exec changeset version
+          publish: pnpm run release
+          commit: 'chore(release): version packages'
+          title: 'chore(release): version packages'
