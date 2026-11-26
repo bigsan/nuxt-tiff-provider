@@ -196,3 +196,127 @@ test('transcodes a CMYK TIFF to opaque RGB inside the Service Worker', async ({ 
   // (3.1.0 and utif2 alike) leaves the final pixel's alpha at 0 on four-ink images.
   expect(pixels.transparent).toBeLessThanOrEqual(1)
 })
+
+// --- Cancellation (issue #3) ---
+
+const CORS = 'http://localhost:3738'
+
+interface ServerRequest {
+  url: string
+  aborted: boolean
+}
+
+/** Fetch a delayed, cross-origin TIFF through the SW; optionally cancel it after `abortAfter` ms. */
+async function fetchThroughSw(
+  page: import('@playwright/test').Page,
+  url: string,
+  abortAfter?: number,
+): Promise<string> {
+  return page.evaluate(
+    async ({ url, abortAfter }) => {
+      const ctrl = new AbortController()
+      if (abortAfter !== undefined) setTimeout(() => ctrl.abort(), abortAfter)
+      try {
+        const res = await fetch(url, { signal: ctrl.signal })
+        await res.arrayBuffer()
+        return res.headers.get('content-type') ?? ''
+      } catch (err) {
+        return (err as Error).name
+      }
+    },
+    { url, abortAfter },
+  )
+}
+
+async function cachedKeysMatching(page: import('@playwright/test').Page, needle: string): Promise<string[]> {
+  return page.evaluate(async (needle) => {
+    const found: string[] = []
+    for (const name of await caches.keys()) {
+      const cache = await caches.open(name)
+      for (const req of await cache.keys()) if (req.url.includes(needle)) found.push(req.url)
+    }
+    return found
+  }, needle)
+}
+
+async function serverRequests(page: import('@playwright/test').Page, needle: string): Promise<ServerRequest[]> {
+  const res = await page.request.get(`${CORS}/__requests`)
+  return ((await res.json()) as ServerRequest[]).filter((r) => r.url.includes(needle))
+}
+
+async function waitForSwControl(page: import('@playwright/test').Page): Promise<void> {
+  await page.goto('/')
+  await expect.poll(() => naturalWidth(page, `img-${RGB8}`), { timeout: 20_000 }).toBeGreaterThan(0)
+  await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true)
+}
+
+test('a delayed request that is not cancelled is transcoded and cached (control)', async ({ page }) => {
+  await waitForSwControl(page)
+  const tag = `ctl${Date.now()}`
+  const type = await fetchThroughSw(page, `${CORS}/rgb8.tif?delay=1500&${tag}&tpx&tpx-w=64`)
+  expect(type).toBe('image/webp')
+  await expect.poll(() => cachedKeysMatching(page, tag)).toHaveLength(1)
+  const reqs = await serverRequests(page, tag)
+  expect(reqs).toHaveLength(1)
+  expect(reqs[0]!.aborted).toBe(false)
+})
+
+test('cancelling mid-download aborts the SW download, with no fallback and nothing cached', async ({ page }) => {
+  // Chromium never fires the FetchEvent's request.signal; the SW learns of the
+  // cancel through the streamed response body it commits once the upstream
+  // answers 200. So the server sends headers at once and holds the body back.
+  await waitForSwControl(page)
+  const tag = `abort${Date.now()}`
+  const result = await fetchThroughSw(page, `${CORS}/rgb8.tif?delayBody=3000&${tag}&tpx&tpx-w=64`, 500)
+  expect(result).toBe('AbortError')
+
+  // The SW's upstream request must be cut off mid-download…
+  await expect.poll(() => serverRequests(page, tag), { timeout: 10_000 }).toEqual([
+    expect.objectContaining({ aborted: true }),
+  ])
+  // …and stay the only one: no passthrough fallback, and no transcode to cache.
+  await page.waitForTimeout(3500)
+  expect(await serverRequests(page, tag)).toHaveLength(1)
+  expect(await cachedKeysMatching(page, tag)).toEqual([])
+})
+
+test('a request cancelled before the upstream answers is dropped once it does', async ({ page }) => {
+  // The common fast-scroll case: the page cancels while the SW still waits for
+  // headers, when Chromium cannot tell the SW. Committing the stream then lets
+  // Chromium cancel it at once, so only the header round trip is spent.
+  await waitForSwControl(page)
+  const tag = `early${Date.now()}`
+  const result = await fetchThroughSw(page, `${CORS}/rgb8.tif?delay=1000&delayBody=3000&${tag}&tpx&tpx-w=64`, 300)
+  expect(result).toBe('AbortError')
+  await expect.poll(() => serverRequests(page, tag), { timeout: 10_000 }).toEqual([
+    expect.objectContaining({ aborted: true }),
+  ])
+  await page.waitForTimeout(3500)
+  expect(await serverRequests(page, tag)).toHaveLength(1)
+  expect(await cachedKeysMatching(page, tag)).toEqual([])
+})
+
+test('a TIFF that fails to transcode errors the <img> and is retried only once', async ({ page }) => {
+  await waitForSwControl(page)
+  const tag = `garbage${Date.now()}`
+  const errored = await page.evaluate((src) => {
+    return new Promise<boolean>((done) => {
+      const img = new Image()
+      img.dataset.testid = 'garbage'
+      let errors = 0
+      img.addEventListener('error', () => {
+        errors++
+        // The recovery retries once, so the second error is final.
+        if (errors === 2) done(true)
+      })
+      img.addEventListener('load', () => done(false))
+      img.src = src
+      document.body.append(img)
+      setTimeout(() => done(errors > 0), 10_000)
+    })
+  }, `${CORS}/garbage.tif?${tag}&tpx`)
+  expect(errored).toBe(true)
+  await page.waitForTimeout(1500)
+  expect(await serverRequests(page, tag)).toHaveLength(2) // original + one retry
+  expect(await cachedKeysMatching(page, tag)).toEqual([])
+})

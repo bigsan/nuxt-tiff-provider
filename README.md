@@ -50,6 +50,23 @@ pnpm run test:e2e      # Playwright: render, liveness, cache, query-string, heig
    return.
 3. Safari (native TIFF) is detected client-side and the SW passes through.
 
+During a fast scroll the SW keeps transcoding cheap for the images that are
+left on screen:
+
+- At most 4 transcodes run at once, and the most recently requested image goes
+  next. Requests for the same image and size share one transcode.
+- Once the upstream answers 200, the SW streams the WebP response, so a request
+  the page cancels (an aborted `fetch`, or an `<img>` whose `src` is cleared or
+  changed) stops its download and skips the decode and encode steps that have
+  not started yet. A request cancelled while the SW still waits for the
+  upstream's headers is dropped as soon as they arrive, so it costs only that
+  round trip. Work for an image is cancelled only when every request for it has
+  gone. An encode that already finished is still cached.
+- Because the response is committed early, a download or decode that fails
+  after that point makes the `<img>` fire `error` (and the raced-image recovery
+  retries it once), instead of passing the raw TIFF through. An upstream error
+  status is still returned as is.
+
 The shipped SW is a prebuilt classic IIFE (`dist/tiff-sw.js` inside
 `@tiff-provider/core`) with `utif2` + `geotiff` and **all geotiff codecs**
 inlined at build time. Consumers never see the dev-time constraint described in
