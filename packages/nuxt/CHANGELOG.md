@@ -1,5 +1,31 @@
 # nuxt-tiff-provider
 
+## 0.5.0
+
+### Minor Changes
+
+- d17de18: Decode on a pool of dedicated workers in the page instead of in the Service Worker.
+
+  TIFF decoding is synchronous, so in the SW it ran one image at a time and blocked every other request until it finished (an A4 Group 4 scan takes about 3 s). The page now runs up to 4 transcodes at once on its own workers, served from the new `tiff-transcode-worker.js` artifact. The SW stays responsive, and a cancelled image stops mid-decode because its worker is terminated. In the repository's benchmark (`pnpm run bench`: headless Chromium on a 24-core machine, local server), eight A4 Group 4 scans painted in about 6 s instead of 22 s, and the longest SW stall fell from about 11 s to under 20 ms. Results depend on the machine's cores and the images.
+
+  The SW still decodes by itself when no page pool is available, for example when the worker script cannot load. New options: `transcodeWorkers` (default `true`; Nuxt module and `registerTiffServiceWorker`) and `workerUrl` (default `/tiff-transcode-worker.js`; `registerTiffServiceWorker`). The Nuxt module serves the worker script automatically.
+
+- be2df0b: Stop wasting Service Worker time on images the page no longer wants (#3).
+
+  - A cancelled request (an aborted `fetch`, or an `<img>` whose `src` is cleared or changed) now aborts the upstream download and skips the decode and encode steps that have not started. Chromium never fires the FetchEvent's `request.signal`, so once the upstream answers 200 the SW streams its WebP response and learns of the cancel through the body stream; a request cancelled before the upstream answers is dropped as soon as it does. The signal is still honoured where browsers fire it.
+  - A cancelled request no longer triggers a second, full download of the raw TIFF through the passthrough fallback.
+  - At most 4 transcodes run at once, and the most recently requested image goes next.
+  - Requests for the same image and size (including the `{prefix}-retry` variant) share one transcode.
+  - The cache write and timing notification no longer delay the response, and a failed cache write no longer falls back to the raw TIFF.
+
+  Behaviour change: a download or decode that fails after the upstream answered 200 now makes the `<img>` fire `error` (retried once by the raced-image recovery) instead of passing the raw TIFF through. Upstream error statuses are still returned as is.
+
+### Patch Changes
+
+- Updated dependencies [d17de18]
+- Updated dependencies [be2df0b]
+  - @tiff-provider/core@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes
