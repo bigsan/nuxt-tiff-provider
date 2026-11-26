@@ -320,3 +320,30 @@ test('a TIFF that fails to transcode errors the <img> and is retried only once',
   expect(await serverRequests(page, tag)).toHaveLength(2) // original + one retry
   expect(await cachedKeysMatching(page, tag)).toEqual([])
 })
+
+// --- Page-side transcode workers (T1051) ---
+// `TIFF_WORKERS=0 pnpm test:e2e` builds without the pool, so every other test
+// covers the SW's own decode path; these two need the pool.
+const POOL_OFF = process.env.TIFF_WORKERS === '0'
+
+test('transcodes on a page-side worker pool', async ({ page }) => {
+  test.skip(POOL_OFF, 'built without the worker pool')
+  const workers: string[] = []
+  page.on('worker', (w) => workers.push(w.url()))
+  await page.goto('/')
+  await expect.poll(() => naturalWidth(page, `img-${RGB8}`), { timeout: 20_000 }).toBeGreaterThan(0)
+  // A fresh transcode after the pool is up runs on it.
+  await waitForSwControl(page)
+  const type = await fetchThroughSw(page, `${CORS}/rgb8.tif?pool${Date.now()}&tpx&tpx-w=50`)
+  expect(type).toBe('image/webp')
+  expect(workers.some((u) => u.endsWith('/tiff-transcode-worker.js'))).toBe(true)
+})
+
+test('still transcodes in the SW when the worker script cannot load', async ({ page }) => {
+  test.skip(POOL_OFF, 'built without the worker pool')
+  await page.route('**/tiff-transcode-worker.js', (route) => route.fulfill({ status: 404, body: 'gone' }))
+  await waitForSwControl(page)
+  const type = await fetchThroughSw(page, `${CORS}/rgb8.tif?noworker${Date.now()}&tpx&tpx-w=50`)
+  expect(type).toBe('image/webp')
+  await expect.poll(() => naturalWidth(page, `img-${GRAY16}`), { timeout: 20_000 }).toBeGreaterThan(0)
+})

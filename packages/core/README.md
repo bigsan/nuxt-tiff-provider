@@ -6,9 +6,10 @@ logic and a **prebuilt classic Service Worker** (`tiff-sw.js`) with `utif2` +
 
 ## Register the Service Worker
 
-Copy `node_modules/@tiff-provider/core/dist/tiff-sw.js` to your site's public
-root (or serve it via your build tool's static-asset mechanism) so it's
-reachable at `/tiff-sw.js`, then:
+Copy `node_modules/@tiff-provider/core/dist/tiff-sw.js` and
+`dist/tiff-transcode-worker.js` to your site's public root (or serve them via
+your build tool's static-asset mechanism) so they're reachable at `/tiff-sw.js`
+and `/tiff-transcode-worker.js`, then:
 
 ```ts
 import { registerTiffServiceWorker } from '@tiff-provider/core/register'
@@ -17,6 +18,10 @@ import { registerTiffServiceWorker } from '@tiff-provider/core/register'
 registerTiffServiceWorker({ scope: '/', cacheName: 'tiff-webp-v1', quality: 0.8 })
 // paramPrefix defaults to 'tp'; override (e.g. { paramPrefix: 'img' }) only to
 // avoid colliding with query params your sources already carry.
+// The page runs the decode on a pool of dedicated workers loaded from
+// `workerUrl` (default '/tiff-transcode-worker.js'); the SW decodes by itself
+// when the pool is unavailable. Pass { transcodeWorkers: false } to always
+// decode in the SW.
 ```
 
 ## Build a provider URL

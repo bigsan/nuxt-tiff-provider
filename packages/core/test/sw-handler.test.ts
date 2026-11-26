@@ -3,6 +3,12 @@ import type { DecodedImage } from '../src/decoder'
 import type { EncodeOptions } from '../src/encoder'
 import { cacheKey } from '../src/router'
 import { createTiffHandler, type CacheLike } from '../src/sw-handler'
+import {
+  TranscodeFailedError,
+  TranscodeUnavailableError,
+  type TranscodeRequest,
+  type TranscodeResult,
+} from '../src/transcode-protocol'
 
 // ---------------------------------------------------------------------------
 // Harness. Every browser dependency is a fake that follows the real rules:
@@ -57,7 +63,17 @@ interface FetchCall {
   d: Deferred<Response>
 }
 
-function setup(opts: { concurrency?: number; native?: boolean; autoDecode?: boolean; autoEncode?: boolean } = {}) {
+interface RemoteCall {
+  clientId: string | undefined
+  request: TranscodeRequest
+  signal: AbortSignal
+  d: Deferred<TranscodeResult>
+}
+
+function setup(
+  opts: { concurrency?: number; native?: boolean; autoDecode?: boolean; autoEncode?: boolean; remote?: boolean } = {},
+) {
+  const remoteCalls: RemoteCall[] = []
   const fetchCalls: FetchCall[] = []
   const decodeCalls: Deferred<DecodedImage>[] = []
   const encodeCalls: { opts: EncodeOptions; d: Deferred<Blob> }[] = []
@@ -113,9 +129,17 @@ function setup(opts: { concurrency?: number; native?: boolean; autoDecode?: bool
     now: () => 0,
     yieldToEventLoop: () => tick().then(() => {}),
     warn,
+    remote: opts.remote
+      ? (clientId, request, signal) => {
+          const d = deferred<TranscodeResult>()
+          remoteCalls.push({ clientId, request, signal, d })
+          signal.addEventListener('abort', () => d.reject(signal.reason), { once: true })
+          return d.promise
+        }
+      : undefined,
   })
 
-  function request(url: string) {
+  function request(url: string, clientId?: string) {
     const ctrl = new AbortController()
     const extended: Promise<unknown>[] = []
     let settled = false
@@ -123,7 +147,7 @@ function setup(opts: { concurrency?: number; native?: boolean; autoDecode?: bool
       if (settled) throw new DOMException('respondWith already settled', 'InvalidStateError')
       extended.push(p)
     }
-    const response = handler(new URL(url), ctrl.signal, waitUntil)
+    const response = handler(new URL(url), ctrl.signal, waitUntil, clientId)
     response.then(
       () => (settled = true),
       () => (settled = true),
@@ -136,6 +160,7 @@ function setup(opts: { concurrency?: number; native?: boolean; autoDecode?: bool
 
   return {
     request,
+    remoteCalls,
     fetchCalls,
     decodeCalls,
     encodeCalls,
@@ -634,6 +659,107 @@ describe('createTiffHandler: concurrency limit', () => {
     await flush()
     a.abort()
     await expectAbortError(a.response)
+    await flush()
+    expect(h.fetchCalls.map((c) => c.url)).toEqual([`${BASE}/a.tif`, `${BASE}/b.tif`])
+  })
+})
+
+describe('createTiffHandler: page-side (remote) transcode', () => {
+  async function fetched(h: ReturnType<typeof setup>, i = 0) {
+    h.fetchCalls[i]!.d.resolve(h.tiffBytes())
+    await flush()
+  }
+
+  it('transcodes on the requesting page and never decodes in the SW', async () => {
+    const h = setup({ remote: true })
+    const r = h.request(tif('a'), 'page-1')
+    await flush()
+    await fetched(h)
+    expect(h.remoteCalls).toHaveLength(1)
+    expect(h.remoteCalls[0]!.clientId).toBe('page-1')
+    expect(h.remoteCalls[0]!.request.opts).toEqual({ targetWidth: 100, targetHeight: undefined, quality: 0.8 })
+    h.remoteCalls[0]!.d.resolve({ blob: h.webp('remote'), decode: 10, encode: 2 })
+    expect(await (await r.response).text()).toBe('remote')
+    await Promise.all(r.extended)
+    expect(h.decodeCalls).toHaveLength(0)
+    expect(h.encodeCalls).toHaveLength(0)
+    expect(h.puts).toEqual([key('a')])
+  })
+
+  it('decodes in the SW when no page can transcode', async () => {
+    const h = setup({ remote: true })
+    const r = h.request(tif('a'), 'page-1')
+    await flush()
+    await fetched(h)
+    h.remoteCalls[0]!.d.reject(new TranscodeUnavailableError('no pool'))
+    await flush()
+    expect(h.decodeCalls).toHaveLength(1)
+    h.decodeCalls[0]!.resolve(h.image)
+    await flush()
+    h.encodeCalls[0]!.d.resolve(h.webp('local'))
+    expect(await (await r.response).text()).toBe('local')
+  })
+
+  it('treats a remote decode failure as final: no SW decode, the stream errors', async () => {
+    const h = setup({ remote: true })
+    const r = h.request(tif('a'), 'page-1')
+    await flush()
+    await fetched(h)
+    const text = (await r.response).text()
+    h.remoteCalls[0]!.d.reject(new TranscodeFailedError('bad tiff'))
+    await expect(text).rejects.toThrow('bad tiff')
+    await flush()
+    expect(h.decodeCalls).toHaveLength(0)
+    expect(h.fetchCalls).toHaveLength(1)
+  })
+
+  it('stops the remote transcode once every request has gone, and the next request starts fresh', async () => {
+    const h = setup({ remote: true })
+    const a = h.request(tif('a'), 'page-1')
+    await flush()
+    await fetched(h)
+    await cancelBody(a)
+    expect(h.remoteCalls[0]!.signal.aborted).toBe(true)
+    await flush()
+    expect(h.decodeCalls).toHaveLength(0) // no SW fallback after a cancel
+
+    h.request(tif('a'), 'page-1')
+    await flush()
+    expect(h.fetchCalls).toHaveLength(2) // a stopped remote job cannot be joined
+  })
+
+  it('keeps the remote transcode running while another request still wants it', async () => {
+    const h = setup({ remote: true })
+    const a = h.request(tif('a'), 'page-1')
+    const b = h.request(tif('a'), 'page-2')
+    await flush()
+    await fetched(h)
+    await cancelBody(a)
+    expect(h.remoteCalls[0]!.signal.aborted).toBe(false)
+    const text = (await b.response).text()
+    h.remoteCalls[0]!.d.resolve({ blob: h.webp('shared'), decode: 1, encode: 1 })
+    expect(await text).toBe('shared')
+  })
+
+  it('does not start a remote transcode for a request cancelled while the body downloads', async () => {
+    const h = setup({ remote: true })
+    const r = h.request(tif('a'), 'page-1')
+    await flush()
+    h.fetchCalls[0]!.d.resolve(h.tiffBytes())
+    r.abort() // before the body has been read
+    await expectAbortError(r.response)
+    await flush()
+    expect(h.remoteCalls).toHaveLength(0)
+    expect(h.decodeCalls).toHaveLength(0)
+  })
+
+  it('frees the slot when a remote transcode is stopped', async () => {
+    const h = setup({ remote: true, concurrency: 1 })
+    const a = h.request(tif('a'), 'page-1')
+    h.request(tif('b'), 'page-1')
+    await flush()
+    await fetched(h)
+    await cancelBody(a)
     await flush()
     expect(h.fetchCalls.map((c) => c.url)).toEqual([`${BASE}/a.tif`, `${BASE}/b.tif`])
   })

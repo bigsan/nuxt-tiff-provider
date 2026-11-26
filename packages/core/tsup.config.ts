@@ -9,9 +9,10 @@ export default defineConfig([
     clean: true,
     external: ['utif2', 'geotiff', 'ufo'],
   },
-  // The Service Worker artifact: one self-contained classic IIFE, everything inlined.
+  // The Service Worker and the page-side transcode worker: self-contained classic
+  // IIFEs with everything inlined.
   {
-    entry: { 'tiff-sw': 'src/sw.ts' },
+    entry: { 'tiff-sw': 'src/sw.ts', 'tiff-transcode-worker': 'src/transcode-worker.ts' },
     format: ['iife'],
     platform: 'browser',
     target: 'es2020',

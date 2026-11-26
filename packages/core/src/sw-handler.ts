@@ -2,6 +2,7 @@ import type { DecodedImage } from './decoder'
 import type { EncodeOptions } from './encoder'
 import { cacheKey, parseModifiers, stripProviderParams } from './router'
 import { createSlotQueue } from './slot-queue'
+import { TranscodeUnavailableError, type TranscodeRequest, type TranscodeResult } from './transcode-protocol'
 
 /** How many transcodes (download + decode + encode) may run at once. */
 export const MAX_CONCURRENT_TRANSCODES = 4
@@ -32,12 +33,24 @@ export interface TiffHandlerDeps {
    */
   yieldToEventLoop: () => Promise<void>
   warn: (message: string, err: unknown) => void
+  /**
+   * Transcode on a page's worker pool, off the SW thread. Reject with
+   * `TranscodeUnavailableError` to decode in the SW instead; any other rejection
+   * is final. Cancelling `signal` must stop the work.
+   */
+  remote?: (clientId: string | undefined, request: TranscodeRequest, signal: AbortSignal) => Promise<TranscodeResult>
 }
 
 /** Extends the FetchEvent's lifetime (`event.waitUntil`). */
 export type WaitUntil = (promise: Promise<unknown>) => void
 
-export type TiffHandler = (url: URL, signal: AbortSignal, waitUntil: WaitUntil) => Promise<Response>
+export type TiffHandler = (
+  url: URL,
+  signal: AbortSignal,
+  waitUntil: WaitUntil,
+  /** The requesting page (`FetchEvent.clientId`), preferred for a remote transcode. */
+  clientId?: string,
+) => Promise<Response>
 
 type Outcome =
   | { kind: 'webp'; blob: Blob; decode: number; encode: number; total: number }
@@ -50,6 +63,8 @@ interface Job {
   phase: 'queued' | 'fetching' | 'processing'
   /** Aborts the slot wait and the upstream fetch once every waiter has gone. */
   controller: AbortController
+  /** Set while a remote transcode runs; it can be stopped outright, unlike a local decode. */
+  remote?: AbortController
   result: Promise<Outcome>
   /** Set synchronously when `result` settles. */
   done?: { outcome: Outcome } | { error: unknown }
@@ -117,16 +132,17 @@ export function createTiffHandler(deps: TiffHandlerDeps): TiffHandler {
   function leave(key: string, job: Job): void {
     job.waiters--
     if (job.waiters > 0) return
-    if (job.phase === 'queued' || job.phase === 'fetching') {
+    if (job.phase === 'queued' || job.phase === 'fetching' || job.remote) {
       job.controller.abort(abortError())
+      job.remote?.abort(abortError())
       // A new request must start fresh rather than join a cancelled download.
       if (jobs.get(key) === job) jobs.delete(key)
     }
-    // In `processing`, the entry stays so a new request can still join; the job
-    // checks for waiters before each stage.
+    // A local decode cannot be stopped, so its entry stays and a new request can
+    // still join; the job checks for waiters before each stage.
   }
 
-  function startJob(key: string, url: URL, cache: CacheLike): Job {
+  function startJob(key: string, url: URL, cache: CacheLike, clientId: string | undefined): Job {
     const controller = new AbortController()
     const job = { waiters: 0, phase: 'queued', controller } as Job
     let markReady!: () => void
@@ -154,6 +170,27 @@ export function createTiffHandler(deps: TiffHandlerDeps): TiffHandler {
         markReady()
         const buffer = await res.arrayBuffer()
         job.phase = 'processing'
+        const { targetWidth, targetHeight, quality } = parseModifiers(url, prefix)
+        const opts = {
+          targetWidth,
+          targetHeight,
+          quality: Number.isFinite(quality) ? quality : deps.defaultQuality,
+        }
+
+        if (deps.remote) {
+          checkpoint()
+          const remote = (job.remote = new AbortController())
+          try {
+            const fetched = deps.now()
+            const r = await deps.remote(clientId, { buffer, opts }, remote.signal)
+            return { kind: 'webp', blob: r.blob, decode: fetched - t0 + r.decode, encode: r.encode, total: deps.now() - t0 }
+          } catch (err) {
+            if (!(err instanceof TranscodeUnavailableError)) throw err
+            // No page could do it: decode here. The SW still holds the bytes.
+          } finally {
+            job.remote = undefined
+          }
+        }
 
         await deps.yieldToEventLoop()
         checkpoint()
@@ -161,12 +198,7 @@ export function createTiffHandler(deps: TiffHandlerDeps): TiffHandler {
         const t1 = deps.now()
 
         checkpoint()
-        const { targetWidth, targetHeight, quality } = parseModifiers(url, prefix)
-        const blob = await deps.encode(decoded, {
-          targetWidth,
-          targetHeight,
-          quality: Number.isFinite(quality) ? quality : deps.defaultQuality,
-        })
+        const blob = await deps.encode(decoded, opts)
         const t2 = deps.now()
         return { kind: 'webp', blob, decode: t1 - t0, encode: t2 - t1, total: t2 - t0 }
       } finally {
@@ -214,7 +246,7 @@ export function createTiffHandler(deps: TiffHandlerDeps): TiffHandler {
     })
   }
 
-  return async function handleTiff(url, signal, waitUntil) {
+  return async function handleTiff(url, signal, waitUntil, clientId) {
     if (deps.isNative()) return deps.fetch(rawRequest(url, signal))
 
     const cache = await deps.openCache()
@@ -227,7 +259,7 @@ export function createTiffHandler(deps: TiffHandlerDeps): TiffHandler {
 
     // No await between the lookup and the join, so two requests can never both
     // miss the map and start two transcodes.
-    const job = jobs.get(key) ?? startJob(key, url, cache)
+    const job = jobs.get(key) ?? startJob(key, url, cache, clientId)
     job.waiters++
     waitUntil(job.settled)
 

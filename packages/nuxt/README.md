@@ -35,6 +35,7 @@ export default defineNuxtConfig({
     retryRacedImages: true,    // re-fetch images that raced the SW on first load
     paramPrefix: 'tp',         // query-param namespace + interception marker
     ignoreNativeTiff: false,   // true → transcode in Safari too, skip native passthrough
+    transcodeWorkers: true,    // decode on page-side workers (/tiff-transcode-worker.js)
   },
 })
 ```
@@ -48,6 +49,11 @@ export default defineNuxtConfig({
 - Already run your own Service Worker? Set `autoRegister: false` and
   `importScripts('/tiff-sw.js')` inside it (see `@tiff-provider/core`).
 - Sources must be same-origin or CORS-readable (cross-origin needs CORS headers).
+- Decoding runs on a pool of dedicated workers in the page
+  (`/tiff-transcode-worker.js`), several images at once, so the Service Worker
+  stays responsive and a cancelled image stops mid-decode. If the worker cannot
+  start (for example a CSP without `worker-src 'self'`), the SW decodes by
+  itself. `transcodeWorkers: false` always decodes in the SW.
 - The SW intercepts by the `tp=1` marker the provider adds, not by file extension,
   so extension-less sources (e.g. an S3 key served as TIFF via `Content-Type`)
   work too. Building a URL by hand? Add the marker with `buildTiffUrl` or `?tp=1`.

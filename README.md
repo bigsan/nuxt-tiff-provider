@@ -9,7 +9,7 @@ is detected and honoured with a passthrough.
 
 | Package | Description |
 |---------|-------------|
-| [`@tiff-provider/core`](packages/core) | Framework-agnostic decode/encode/route logic + prebuilt Service Worker IIFE (`tiff-sw.js`) |
+| [`@tiff-provider/core`](packages/core) | Framework-agnostic decode/encode/route logic + prebuilt Service Worker and transcode worker IIFEs (`tiff-sw.js`, `tiff-transcode-worker.js`) |
 | [`nuxt-tiff-provider`](packages/nuxt) | Nuxt module: registers the `@nuxt/image` provider, serves the prebuilt SW, and wires up a client plugin |
 
 ## Develop
@@ -47,7 +47,9 @@ pnpm run test:e2e      # Playwright: render, liveness, cache, query-string, heig
 2. A Service Worker intercepts requests carrying the provider's marker (`tp` by
    default): cache hit → serve WebP; miss → fetch raw bytes, decode (UTIF →
    geotiff.js fallback), resize + encode to WebP via `OffscreenCanvas`, cache,
-   return.
+   return. The decode and encode run on a pool of dedicated workers in the
+   page that made the request (`tiff-transcode-worker.js`), several at once on
+   several cores; the SW does them itself when no page pool is available.
 3. Safari (native TIFF) is detected client-side and the SW passes through.
 
 During a fast scroll the SW keeps transcoding cheap for the images that are
@@ -58,9 +60,10 @@ left on screen:
 - Once the upstream answers 200, the SW streams the WebP response, so a request
   the page cancels (an aborted `fetch`, or an `<img>` whose `src` is cleared or
   changed) stops its download and skips the decode and encode steps that have
-  not started yet. A request cancelled while the SW still waits for the
-  upstream's headers is dropped as soon as they arrive, so it costs only that
-  round trip. Work for an image is cancelled only when every request for it has
+  not started yet; on the page worker pool, a decode already under way is
+  stopped too (its worker is terminated). A request cancelled while the SW
+  still waits for the upstream's headers is dropped as soon as they arrive, so
+  it costs only that round trip. Work for an image is cancelled only when every request for it has
   gone. An encode that already finished is still cached.
 - Because the response is committed early, a download or decode that fails
   after that point makes the `<img>` fire `error` (and the raced-image recovery

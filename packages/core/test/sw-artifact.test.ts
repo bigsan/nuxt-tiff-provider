@@ -28,3 +28,20 @@ describe('built tiff-sw.js artifact', () => {
     expect(code.length).toBeGreaterThan(50_000) // codecs are actually inlined
   })
 })
+
+// The page-side transcode worker ships the same way: a classic script (started
+// with `new Worker(url)`, no `type: 'module'`) with every codec inlined.
+const WORKER = resolve(__dirname, '../dist/tiff-transcode-worker.js')
+
+describe('built tiff-transcode-worker.js artifact', () => {
+  it('is a classic script with the decoders inlined', () => {
+    expect(existsSync(WORKER)).toBe(true)
+    const code = readFileSync(WORKER, 'utf8')
+    expect(code).not.toMatch(/\bimport\s*[*{]/)
+    expect(code).not.toMatch(/\bimport\s+["']/)
+    expect(code).not.toMatch(/\bexport\s*[{*]/)
+    expect(code).not.toMatch(/import\(/)
+    expect(code).toMatch(/onmessage/)
+    expect(code.length).toBeGreaterThan(50_000)
+  })
+})
