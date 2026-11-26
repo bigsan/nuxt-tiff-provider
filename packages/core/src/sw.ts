@@ -1,7 +1,10 @@
 /// <reference lib="webworker" />
 import { decodeTiff } from './decoder'
 import { encodeWebp } from './encoder'
-import { cacheKey, parseModifiers, shouldIntercept, stripProviderParams } from './router'
+import { shouldIntercept } from './router'
+import { createRemoteTranscoder } from './remote-transcode'
+import { createTiffHandler } from './sw-handler'
+import { TRANSCODER_QUERY, TRANSCODER_READY, type TranscodeAskMessage } from './transcode-protocol'
 
 declare const self: ServiceWorkerGlobalScope
 
@@ -28,66 +31,52 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'NATIVE_TIFF') {
     nativeTiff = Boolean(event.data.value)
+  } else if (event.data?.type === TRANSCODER_READY) {
+    const source = event.source as Client | null
+    if (source) remote.markReady(source.id)
+  } else if (event.data?.type === 'PING') {
+    // Liveness probe: the round trip shows how long the worker was blocked.
+    event.ports[0]?.postMessage({ type: 'PONG' })
   }
+})
+
+// Pages that run a transcode worker pool. Kept in memory only, so after the SW
+// is restarted it asks the open pages to announce themselves again; until they
+// do, images decode here.
+const remote = createRemoteTranscoder({
+  getClient: async (id) => {
+    const client = await self.clients.get(id)
+    return client
+      ? { id: client.id, postMessage: (m: TranscodeAskMessage, t: Transferable[]) => client.postMessage(m, t) }
+      : undefined
+  },
+})
+void self.clients.matchAll({ type: 'window' }).then((clients) => {
+  for (const client of clients) client.postMessage({ type: TRANSCODER_QUERY })
+})
+
+const handleTiff = createTiffHandler({
+  prefix: PREFIX,
+  defaultQuality: DEFAULT_QUALITY,
+  isNative: () => nativeTiff,
+  fetch: (request) => fetch(request),
+  openCache: () => caches.open(CACHE_NAME),
+  decode: decodeTiff,
+  encode: encodeWebp,
+  notify: notifyTimings,
+  now: () => performance.now(),
+  yieldToEventLoop: () => new Promise((resolve) => setTimeout(resolve, 0)),
+  warn: (message, err) => console.warn(message, err),
+  remote: (clientId, request, signal) => remote.transcode(clientId, request, signal),
 })
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url)
   if (!shouldIntercept(url, PREFIX)) return
-  event.respondWith(handleTiff(url))
+  event.respondWith(
+    handleTiff(url, event.request.signal, (p) => event.waitUntil(p), event.clientId || event.resultingClientId),
+  )
 })
-
-async function handleTiff(url: URL): Promise<Response> {
-  // Safari renders TIFF natively — skip the transcode entirely.
-  if (nativeTiff) return fetch(rawRequest(url))
-
-  const cache = await caches.open(CACHE_NAME)
-  // Normalize the cache key so a cold-load retry (which adds {prefix}-retry to
-  // bust the browser cache) shares the same entry as a normal request.
-  const key = cacheKey(url, PREFIX)
-  const cached = await cache.match(key)
-  if (cached) return cached
-
-  try {
-    const t0 = performance.now()
-    const res = await fetch(rawRequest(url))
-    if (!res.ok) return res
-    const buffer = await res.arrayBuffer()
-    const decoded = await decodeTiff(buffer)
-    const t1 = performance.now()
-    const { targetWidth, targetHeight, quality } = parseModifiers(url, PREFIX)
-    const blob = await encodeWebp(decoded, {
-      targetWidth,
-      targetHeight,
-      quality: Number.isFinite(quality) ? quality : DEFAULT_QUALITY,
-    })
-    const t2 = performance.now()
-
-    const response = new Response(blob, {
-      headers: {
-        'Content-Type': 'image/webp',
-        'Cache-Control': 'no-cache',
-        'X-Tiff-Transcoded': '1',
-      },
-    })
-    await cache.put(key, response.clone())
-    await notifyTimings(url.pathname, t1 - t0, t2 - t1, t2 - t0)
-    return response
-  } catch (err) {
-    console.warn('[tiff-sw] transcode failed, passing through:', err)
-    return fetch(rawRequest(url))
-  }
-}
-
-/**
- * Upstream request for the original bytes: the provider marker and `{prefix}-*`
- * params are stripped (so the SW does not re-intercept its own fetch) while the
- * source's own query is preserved; `cors` mode allows same-origin or
- * CORS-readable cross-origin sources.
- */
-function rawRequest(url: URL): Request {
-  return new Request(stripProviderParams(url, PREFIX), { mode: 'cors' })
-}
 
 async function notifyTimings(
   pathname: string,

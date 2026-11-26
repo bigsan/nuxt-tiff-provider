@@ -10,6 +10,7 @@ export default defineNuxtPlugin(() => {
     retryRacedImages?: boolean
     paramPrefix?: string
     ignoreNativeTiff?: boolean
+    transcodeWorkers?: boolean
   }
   void registerTiffServiceWorker({
     scope: cfg.scope,
@@ -18,5 +19,6 @@ export default defineNuxtPlugin(() => {
     retryRacedImages: cfg.retryRacedImages,
     paramPrefix: cfg.paramPrefix,
     ignoreNativeTiff: cfg.ignoreNativeTiff,
+    transcodeWorkers: cfg.transcodeWorkers,
   })
 })

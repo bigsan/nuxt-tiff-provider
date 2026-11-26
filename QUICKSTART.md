@@ -94,6 +94,7 @@ export default defineNuxtConfig({
     retryRacedImages: true,    // re-fetch images that raced the SW on first load
     paramPrefix: 'tp',         // query-param namespace + interception marker
     ignoreNativeTiff: false,   // true → transcode in Safari too, skip native passthrough
+    transcodeWorkers: true,    // decode on page-side workers (/tiff-transcode-worker.js)
   },
 })
 ```

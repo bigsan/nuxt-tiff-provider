@@ -1,3 +1,5 @@
+import { installPageTranscoder } from './page-transcoder'
+
 export interface RegisterOptions {
   /** SW script URL. Default '/tiff-sw.js' (served at root scope). */
   swUrl?: string
@@ -23,6 +25,15 @@ export interface RegisterOptions {
    * output everywhere, e.g. WebP sizes and resizing. Default false.
    */
   ignoreNativeTiff?: boolean
+  /**
+   * Decode and encode on a pool of dedicated workers in the page instead of in
+   * the Service Worker: several images at once on several cores, a SW that stays
+   * responsive, and cancelled images stopped mid-decode. The SW decodes by
+   * itself whenever no page pool is available. Default true.
+   */
+  transcodeWorkers?: boolean
+  /** URL of the prebuilt transcode worker. Default '/tiff-transcode-worker.js'. */
+  workerUrl?: string
 }
 
 // A minimal 2x2 baseline TIFF. createImageBitmap() resolves it only where the
@@ -136,6 +147,8 @@ export async function registerTiffServiceWorker(
     retryRacedImages = true,
     paramPrefix = 'tp',
     ignoreNativeTiff = false,
+    transcodeWorkers = true,
+    workerUrl = '/tiff-transcode-worker.js',
   } = opts
 
   // Install before registering so the capture listener is in place as early as possible.
@@ -155,5 +168,8 @@ export async function registerTiffServiceWorker(
   const nativeTiff = ignoreNativeTiff ? false : await detectNativeTiff()
   const ready = await navigator.serviceWorker.ready
   ready.active?.postMessage({ type: 'NATIVE_TIFF', value: nativeTiff })
+  if (transcodeWorkers && !nativeTiff && typeof Worker !== 'undefined') {
+    installPageTranscoder({ workerUrl })
+  }
   return reg
 }

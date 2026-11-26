@@ -21,4 +21,16 @@ describe('nuxt-tiff-provider integration', async () => {
     expect(sw).toMatch(/addEventListener/) // it really is the SW
     expect(sw.length).toBeGreaterThan(50_000) // codecs inlined
   })
+
+  it('serves the prebuilt transcode worker at /tiff-transcode-worker.js, uncached', async () => {
+    const res = await fetch('/tiff-transcode-worker.js')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('cache-control') ?? '').toContain('no-cache')
+
+    const worker = await res.text()
+    expect(worker).not.toMatch(/\bimport\s*[*{]/)
+    expect(worker).not.toMatch(/\bexport\s/)
+    expect(worker).toMatch(/onmessage/)
+    expect(worker.length).toBeGreaterThan(50_000)
+  })
 })

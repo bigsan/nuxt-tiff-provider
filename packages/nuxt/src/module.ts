@@ -27,6 +27,11 @@ export interface ModuleOptions {
   paramPrefix: string
   /** Transcode in the SW even where TIFF is native (Safari). Default false. */
   ignoreNativeTiff: boolean
+  /**
+   * Decode on a pool of dedicated workers in the page instead of in the SW
+   * (served at /tiff-transcode-worker.js). Default true.
+   */
+  transcodeWorkers: boolean
 }
 
 const module = defineNuxtModule<ModuleOptions>({
@@ -44,6 +49,7 @@ const module = defineNuxtModule<ModuleOptions>({
     retryRacedImages: true,
     paramPrefix: 'tp',
     ignoreNativeTiff: false,
+    transcodeWorkers: true,
   },
   async setup(options, nuxt) {
     const resolver = createResolver(import.meta.url)
@@ -72,15 +78,18 @@ const module = defineNuxtModule<ModuleOptions>({
     // 3. Copy the prebuilt classic SW into a stable dir and serve it at root scope
     //    (root scope needs no Service-Worker-Allowed header).
     const require = createRequire(import.meta.url)
-    let swSource: string
-    try {
-      swSource = require.resolve('@tiff-provider/core/tiff-sw.js')
-    } catch {
-      throw new Error(
-        'nuxt-tiff-provider: could not resolve "@tiff-provider/core/tiff-sw.js". ' +
-          'Ensure @tiff-provider/core is installed and built (run `pnpm run build:core`).',
-      )
+    const resolveArtifact = (name: string): string => {
+      try {
+        return require.resolve(`@tiff-provider/core/${name}`)
+      } catch {
+        throw new Error(
+          `nuxt-tiff-provider: could not resolve "@tiff-provider/core/${name}". ` +
+            'Ensure @tiff-provider/core is installed and built (run `pnpm run build:core`).',
+        )
+      }
     }
+    const swSource = resolveArtifact('tiff-sw.js')
+    const workerSource = resolveArtifact('tiff-transcode-worker.js')
     // The Nuxt CLI's build command calls clearBuildDir() which removes everything
     // from buildDir except 'cache/', 'analyze/', 'nuxt.json', and 'nuxt.lock'.
     // We store the SW under buildDir/cache/tiff-sw/ so it survives clearBuildDir.
@@ -88,6 +97,7 @@ const module = defineNuxtModule<ModuleOptions>({
     const swDir = join(nuxt.options.buildDir, 'cache', 'tiff-sw')
     mkdirSync(swDir, { recursive: true })
     copyFileSync(swSource, join(swDir, 'tiff-sw.js'))
+    copyFileSync(workerSource, join(swDir, 'tiff-transcode-worker.js'))
 
     // `nitro:config` is a runtime Nuxt hook bridged from Nitro, not yet in NuxtHooks types.
     ;(nuxt.hook as (
@@ -106,6 +116,7 @@ const module = defineNuxtModule<ModuleOptions>({
     }).nitro ??= {}
     nitroOptions.routeRules = defu(nitroOptions.routeRules, {
       '/tiff-sw.js': { headers: { 'cache-control': 'no-cache' } },
+      '/tiff-transcode-worker.js': { headers: { 'cache-control': 'no-cache' } },
     })
 
     // 4. Hand options to the client plugin and register it.
@@ -118,6 +129,7 @@ const module = defineNuxtModule<ModuleOptions>({
         retryRacedImages: options.retryRacedImages,
         paramPrefix: options.paramPrefix,
         ignoreNativeTiff: options.ignoreNativeTiff,
+        transcodeWorkers: options.transcodeWorkers,
       },
     )
     if (options.autoRegister) {
